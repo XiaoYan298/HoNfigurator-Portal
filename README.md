@@ -338,7 +338,7 @@ HoNfigurator.ManagementPortal/
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `ASPNETCORE_ENVIRONMENT` | Runtime environment | `Development` |
-| `ASPNETCORE_URLS` | Listen URLs | `http://localhost:5000` |
+| `ASPNETCORE_URLS` | Listen URLs | `http://localhost:5200` |
 | `Discord__ClientId` | Discord OAuth2 Client ID | - |
 | `Discord__ClientSecret` | Discord OAuth2 Client Secret | - |
 | `Discord__RedirectUri` | OAuth2 callback URL | - |
@@ -378,7 +378,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- [HoN (Heroes of Newerth)](https://www.heroesofnewerth.com/) - The game
 - [Project KONGOR](https://github.com/Project-KONGOR-Open-Source) - Community revival project
 - [ASP.NET Core](https://docs.microsoft.com/aspnet/core) - Web framework
 - [Tailwind CSS](https://tailwindcss.com/) - CSS framework

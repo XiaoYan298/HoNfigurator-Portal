@@ -378,6 +378,15 @@ public class SystemStatsReport
     
     [JsonPropertyName("uptimeSeconds")]
     public long UptimeSeconds { get; set; }
+    
+    [JsonPropertyName("svr_total_per_core")]
+    public double SvrTotalPerCore { get; set; } = 1.0;
+    
+    [JsonPropertyName("max_allowed_servers")]
+    public int MaxAllowedServers { get; set; }
+    
+    [JsonPropertyName("svr_total")]
+    public int SvrTotal { get; set; }
 }
 
 /// <summary>

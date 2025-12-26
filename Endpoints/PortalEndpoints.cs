@@ -132,6 +132,10 @@ public static class PortalEndpoints
             .WithName("AddInstance")
             .WithDescription("Add a new game server instance");
 
+        group.MapPost("/servers/{serverId}/instances/add-all", AddAllInstances)
+            .WithName("AddAllInstances")
+            .WithDescription("Add all instances up to maximum CPU capacity");
+
         group.MapPost("/servers/{serverId}/instances/{instanceId}/delete", DeleteInstance)
             .WithName("DeleteInstance")
             .WithDescription("Delete a game server instance");
@@ -1093,6 +1097,49 @@ public static class PortalEndpoints
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to add instance on {Server}", server.ServerName);
+            return Results.BadRequest(new { error = "Connection failed - server may be offline" });
+        }
+    }
+
+    /// <summary>
+    /// Add all instances up to maximum CPU capacity
+    /// </summary>
+    private static async Task<IResult> AddAllInstances(
+        string serverId,
+        HttpContext httpContext,
+        PortalDbContext db,
+        IHubContext<PortalHub> hubContext,
+        ILogger<Program> logger)
+    {
+        var user = await AuthEndpoints.GetAuthenticatedUser(httpContext, db);
+        if (user == null) return Results.Unauthorized();
+
+        // Admin role required to add instances
+        var (server, role, error) = await GetServerWithAccess(db, user, serverId, ServerRole.Admin);
+        if (server == null) return Results.NotFound(new { error = error ?? "Server not found" });
+
+        try
+        {
+            var response = await _proxyClient.PostAsync(
+                $"http://{server.IpAddress}:{server.ApiPort}/api/servers/add-all",
+                null);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<object>();
+                logger.LogInformation("User {User} added all instances on {Server}", 
+                    user.Username, server.ServerName);
+                
+                await hubContext.Clients.All.SendAsync("BulkAction", serverId, "instances-added-all");
+                return Results.Ok(result);
+            }
+
+            var errorMsg = await response.Content.ReadAsStringAsync();
+            return Results.BadRequest(new { error = $"Failed: {errorMsg}" });
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to add all instances on {Server}", server.ServerName);
             return Results.BadRequest(new { error = "Connection failed - server may be offline" });
         }
     }

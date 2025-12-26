@@ -464,7 +464,7 @@
                 <!-- System Stats -->
                 <div class="bg-zinc-800/50 rounded-lg p-4 border border-zinc-800">
                     <h4 class="text-sm font-medium mb-3 text-zinc-400">System</h4>
-                    <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    <div class="grid grid-cols-2 md:grid-cols-6 gap-3">
                         <div class="text-center">
                             <div class="text-xs text-zinc-500 mb-1">CPU</div>
                             <div class="text-xl font-medium" 
@@ -487,11 +487,18 @@
                                  x-text="statusData?.system_stats?.cpu_count || statusData?.systemStats?.cpuCount || '-'"></div>
                         </div>
                         <div class="text-center">
-                            <div class="text-xs text-zinc-500 mb-1">Max @ 1/CPU</div>
+                            <div class="text-xs text-zinc-500 mb-1">Target</div>
+                            <div class="text-xl font-medium"
+                                 :class="getSvrTargetColor(statusData)"
+                                 x-text="(statusData?.system_stats?.svr_total || statusData?.systemStats?.svrTotal || (statusData?.total_servers || statusData?.totalServers || '-'))"></div>
+                            <div class="text-[10px] text-zinc-600" x-text="'(' + (statusData?.running_servers || statusData?.runningServers || 0) + ' running)'"></div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-xs text-zinc-500 mb-1">Max Allowed</div>
                             <div class="text-xl font-medium" 
-                                 :class="(statusData?.total_servers || statusData?.totalServers || 0) >= getMaxServers(statusData?.system_stats?.cpu_count || statusData?.systemStats?.cpuCount || 0) ? 'text-orange-400' : 'text-green-400'"
-                                 x-text="getMaxServers(statusData?.system_stats?.cpu_count || statusData?.systemStats?.cpuCount || 0) || '-'"></div>
-                            <div class="text-[10px] text-zinc-600" x-text="'(' + (statusData?.total_servers || statusData?.totalServers || 0) + ' running)'"></div>
+                                 :class="(statusData?.system_stats?.svr_total || statusData?.systemStats?.svrTotal || 0) > (statusData?.system_stats?.max_allowed_servers || statusData?.systemStats?.maxAllowedServers || 0) ? 'text-red-400' : 'text-green-400'"
+                                 x-text="(statusData?.system_stats?.max_allowed_servers || statusData?.systemStats?.maxAllowedServers || getMaxServers(statusData?.system_stats?.cpu_count || statusData?.systemStats?.cpuCount || 0)) || '-'"></div>
+                            <div class="text-[10px] text-zinc-600" x-text="'(' + (statusData?.system_stats?.svr_total_per_core || statusData?.systemStats?.svrTotalPerCore || 1) + '/CPU)'"></div>
                         </div>
                     </div>
                 </div>
@@ -684,6 +691,18 @@
                                 <label class="block text-xs text-zinc-500 mb-1">Total</label>
                                 <input type="number" x-model="serverConfig.svr_total" min="0" max="20"
                                        class="w-full h-8 bg-zinc-900 border border-zinc-700 rounded px-2 text-sm focus:outline-none">
+                            </div>
+                            
+                            <!-- Servers Per Core -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Per CPU</label>
+                                <select x-model="serverConfig.svr_total_per_core" 
+                                        class="w-full h-8 bg-zinc-900 border border-zinc-700 rounded px-2 text-sm focus:outline-none">
+                                    <option value="0.5">0.5</option>
+                                    <option value="1">1</option>
+                                    <option value="2">2</option>
+                                    <option value="3">3</option>
+                                </select>
                             </div>
                             
                             <!-- Enable Bot Match -->
@@ -897,6 +916,10 @@
                                 <button @click="showAddInstanceModal = true" :disabled="controlLoading"
                                         class="w-full px-3 py-2 bg-zinc-700 hover:bg-zinc-600 rounded text-sm transition-colors disabled:opacity-50">
                                     <i class="fas fa-plus mr-2"></i>Add Instance
+                                </button>
+                                <button @click="addAllInstances()" :disabled="controlLoading"
+                                        class="w-full px-3 py-2 bg-zinc-700 hover:bg-green-600 rounded text-sm transition-colors disabled:opacity-50">
+                                    <i class="fas fa-server mr-2"></i>Add All
                                 </button>
                                 <button @click="deleteAllInstances()" :disabled="controlLoading"
                                         class="w-full px-3 py-2 bg-zinc-700 hover:bg-red-600 rounded text-sm transition-colors disabled:opacity-50">
@@ -1264,6 +1287,7 @@
                     svr_location: 'NEWERTH',
                     svr_priority: 'HIGH',
                     svr_total: 1,
+                    svr_total_per_core: 1,
                     svr_enableBotMatch: true,
                     svr_start_on_launch: false,
                     svr_noConsole: true,
@@ -1725,6 +1749,35 @@
                     }
                 },
 
+                async addAllInstances() {
+                    const maxServers = this.statusData?.system_stats?.max_allowed_servers || this.statusData?.systemStats?.maxAllowedServers || 0;
+                    const current = this.statusData?.total_servers || this.statusData?.totalServers || 0;
+                    
+                    if (!confirm(`Add all instances up to maximum capacity (${maxServers})? Currently have ${current} instances.`)) return;
+                    
+                    this.controlLoading = true;
+                    try {
+                        const res = await this.apiCall(
+                            `/api/servers/${this.selectedServer.serverId}/instances/add-all`,
+                            { method: 'POST' }
+                        );
+                        const data = await res.json();
+                        if (res.ok) {
+                            // Wait a moment for HoNfigurator to update its state
+                            await new Promise(r => setTimeout(r, 1000));
+                            await this.refreshServerDetails();
+                            await this.loadServers(); // Also refresh the main list
+                            alert(data.message || `Added instances to reach maximum capacity`);
+                        } else {
+                            alert(data.error || 'Failed to add all instances');
+                        }
+                    } catch (err) {
+                        alert('Network error');
+                    } finally {
+                        this.controlLoading = false;
+                    }
+                },
+
                 async deleteInstance(instanceId) {
                     if (!confirm(`Delete instance #${instanceId}?`)) return;
                     
@@ -1892,6 +1945,7 @@
                             this.serverConfig.svr_location = config.svr_location?.value ?? 'NEWERTH';
                             this.serverConfig.svr_priority = config.svr_priority?.value ?? 'HIGH';
                             this.serverConfig.svr_total = config.svr_total?.value ?? 1;
+                            this.serverConfig.svr_total_per_core = config.svr_total_per_core?.value ?? 1;
                             this.serverConfig.svr_enableBotMatch = config.svr_enableBotMatch?.value ?? true;
                             this.serverConfig.svr_start_on_launch = config.svr_start_on_launch?.value ?? false;
                             this.serverConfig.svr_noConsole = config.svr_noConsole?.value ?? true;
@@ -1932,6 +1986,7 @@
                             svr_location: this.serverConfig.svr_location,
                             svr_priority: this.serverConfig.svr_priority,
                             svr_total: parseInt(this.serverConfig.svr_total),
+                            svr_total_per_core: parseFloat(this.serverConfig.svr_total_per_core),
                             svr_enableBotMatch: this.serverConfig.svr_enableBotMatch,
                             svr_start_on_launch: this.serverConfig.svr_start_on_launch,
                             svr_noConsole: this.serverConfig.svr_noConsole,
@@ -2196,7 +2251,7 @@
                     return `${hours}h ${minutes}m`;
                 },
 
-                // Calculate max allowed servers based on CPU count (matching Python version)
+                // Calculate max allowed servers based on CPU count
                 // Reserves some CPUs for OS/Manager: <=4 cores: 1 reserved, 5-12: 2 reserved, >12: 4 reserved
                 getMaxServers(cpuCount, serversPerCore = 1) {
                     if (!cpuCount || cpuCount <= 0) return 0;
@@ -2204,6 +2259,17 @@
                     if (cpuCount > 4 && cpuCount <= 12) reserved = 2;
                     else if (cpuCount > 12) reserved = 4;
                     return Math.max(0, (cpuCount * serversPerCore) - reserved);
+                },
+
+                // Get color for target server count based on comparison with max allowed
+                getSvrTargetColor(statusData) {
+                    const target = statusData?.system_stats?.svr_total || statusData?.systemStats?.svrTotal || 0;
+                    const maxAllowed = statusData?.system_stats?.max_allowed_servers || statusData?.systemStats?.maxAllowedServers || 0;
+                    const running = statusData?.running_servers || statusData?.runningServers || 0;
+                    
+                    if (target > maxAllowed) return 'text-red-400';  // Target exceeds max
+                    if (running < target) return 'text-yellow-400';  // Not all targets running
+                    return 'text-green-400';  // All good
                 },
 
                 closeModals() {

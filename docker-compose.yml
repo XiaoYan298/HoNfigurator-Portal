@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  portal:
+    build:
+      context: ..
+      dockerfile: HoNfigurator.ManagementPortal/Dockerfile
+    container_name: honfigurator-portal
+    ports:
+      - "5200:5200"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - Portal__BaseUrl=https://your-domain.com
+      - Portal__Port=5200
+      - Portal__BindToAllInterfaces=true
+      - Discord__ClientId=YOUR_DISCORD_CLIENT_ID
+      - Discord__ClientSecret=YOUR_DISCORD_CLIENT_SECRET
+      - Discord__RedirectUri=https://your-domain.com/auth/discord/callback
+    volumes:
+      - portal-data:/app/data
+    restart: unless-stopped
+    networks:
+      - portal-network
+
+  # Optional: nginx reverse proxy for HTTPS
+  nginx:
+    image: nginx:alpine
+    container_name: portal-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - portal
+    restart: unless-stopped
+    networks:
+      - portal-network
+
+volumes:
+  portal-data:
+
+networks:
+  portal-network:
+    driver: bridge

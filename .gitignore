@@ -1,0 +1,46 @@
+# Build outputs
+bin/
+obj/
+publish/
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# IDE
+.vs/
+.vscode/
+*.swp
+*~
+
+# NuGet
+*.nupkg
+.nuget/
+packages/
+
+# Logs
+*.log
+logs/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Secrets (if any)
+appsettings.*.local.json
+secrets.json
+
+# Compressed files from publish
+*.zip

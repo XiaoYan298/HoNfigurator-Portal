@@ -1,0 +1,2260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HoNfigurator Management Portal</title>
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        [x-cloak] { display: none !important; }
+        /* Clean Minimal Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        dark: { 50: '#18181b', 100: '#1f1f23', 200: '#27272a', 300: '#3f3f46' }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-zinc-950 text-gray-100 min-h-screen" x-data="portalApp()" x-init="init()">
+    
+    <!-- Login Screen -->
+    <div x-show="!user" x-cloak class="min-h-screen flex items-center justify-center p-6">
+        <div class="w-full max-w-sm">
+            <!-- Logo -->
+            <div class="text-center mb-10">
+                <img src="/favicon.png" alt="HoNfigurator" class="w-80 h-59 mx-auto mb-4">
+                <h1 class="text-2xl font-semibold text-white">HoNfigurator</h1>
+                <p class="text-zinc-500 text-sm mt-1">Management Portal</p>
+            </div>
+            
+            <!-- Login Card -->
+            <div class="bg-zinc-900 rounded-lg p-6 border border-zinc-800">
+                <p class="text-zinc-400 text-sm text-center mb-6">
+                    Sign in to manage your game servers
+                </p>
+                
+                <a href="/auth/discord" 
+                   class="flex items-center justify-center gap-2 w-full bg-[#5865F2] hover:bg-[#4752C4] text-white py-3 px-4 rounded-lg font-medium transition-colors">
+                    <i class="fab fa-discord text-lg"></i>
+                    Continue with Discord
+                </a>
+            </div>
+            
+            <p class="text-xs text-zinc-600 text-center mt-6">
+                By continuing, you agree to our terms of service.
+            </p>
+        </div>
+    </div>
+
+    <!-- Main App (after login) -->
+    <div x-show="user" x-cloak>
+        <!-- Header -->
+        <header class="bg-zinc-900 border-b border-zinc-800 sticky top-0 z-50">
+            <div class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+                <!-- Logo -->
+                <div class="flex items-center gap-2">
+                    <img src="/favicon.png" alt="" class="w-30 h-14">
+                    <span class="font-semibold text-white">HoNfigurator</span>
+                    <span class="text-[10px] px-1.5 py-0.5 bg-orange-500/10 text-orange-400 rounded font-medium">BETA</span>
+                </div>
+                
+                <!-- Right -->
+                <div class="flex items-center gap-4">
+                    <!-- Status -->
+                    <div class="flex items-center gap-1.5 text-xs">
+                        <span class="w-1.5 h-1.5 rounded-full" :class="hubConnected ? 'bg-green-500' : 'bg-red-500'"></span>
+                        <span :class="hubConnected ? 'text-green-500' : 'text-red-500'" x-text="hubConnected ? 'Live' : 'Offline'"></span>
+                    </div>
+                    
+                    <!-- Admin -->
+                    <button x-show="user?.isSuperAdmin" 
+                            @click="showAdminPanel = true; loadAdminUsers()"
+                            class="text-xs text-zinc-400 hover:text-white transition">
+                        <i class="fas fa-shield-alt"></i>
+                    </button>
+                    
+                    <!-- User -->
+                    <div class="flex items-center gap-2">
+                        <img :src="user?.avatar" class="w-7 h-7 rounded-full">
+                        <span class="text-sm text-zinc-300 hidden sm:block" x-text="user?.username"></span>
+                        <button @click="logout()" class="text-zinc-500 hover:text-white transition p-1" title="Logout">
+                            <i class="fas fa-sign-out-alt text-sm"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="max-w-6xl mx-auto px-4 py-6">
+            <!-- No Servers - Empty State -->
+            <div x-show="servers.length === 0 && !loading" class="text-center py-20">
+                <div class="w-16 h-16 mx-auto mb-6 rounded-full bg-zinc-800 flex items-center justify-center">
+                    <i class="fas fa-server text-2xl text-zinc-500"></i>
+                </div>
+                <h2 class="text-lg font-medium text-white mb-2">No servers yet</h2>
+                <p class="text-zinc-500 text-sm mb-6 max-w-sm mx-auto">
+                    Add your HoNfigurator server to start monitoring.
+                </p>
+                <button @click="showAddModal = true" 
+                        class="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors">
+                    <i class="fas fa-plus mr-2"></i>Add Server
+                </button>
+            </div>
+
+            <!-- Has Servers - Dashboard -->
+            <div x-show="servers.length > 0">
+                <!-- Stats Row -->
+                <div class="grid grid-cols-4 gap-4 mb-6">
+                    <div class="bg-zinc-900 rounded-lg p-4 border border-zinc-800">
+                        <div class="text-zinc-500 text-xs uppercase tracking-wide mb-1">Hosts</div>
+                        <div class="text-2xl font-semibold text-white" x-text="dashboard.totalServers"></div>
+                        <div class="text-xs text-green-500 mt-1"><span x-text="dashboard.onlineServers"></span> online</div>
+                    </div>
+                    <div class="bg-zinc-900 rounded-lg p-4 border border-zinc-800">
+                        <div class="text-zinc-500 text-xs uppercase tracking-wide mb-1">Servers</div>
+                        <div class="text-2xl font-semibold text-white" x-text="dashboard.totalGameServers"></div>
+                        <div class="text-xs text-green-500 mt-1"><span x-text="dashboard.activeGameServers"></span> active</div>
+                    </div>
+                    <div class="bg-zinc-900 rounded-lg p-4 border border-zinc-800">
+                        <div class="text-zinc-500 text-xs uppercase tracking-wide mb-1">Matches</div>
+                        <div class="text-2xl font-semibold text-white" x-text="dashboard.activeMatches"></div>
+                    </div>
+                    <div class="bg-zinc-900 rounded-lg p-4 border border-zinc-800">
+                        <div class="text-zinc-500 text-xs uppercase tracking-wide mb-1">Players</div>
+                        <div class="text-2xl font-semibold text-white" x-text="dashboard.totalPlayers"></div>
+                    </div>
+                </div>
+
+                <!-- Server List -->
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-sm font-medium text-zinc-400">Your Servers</h2>
+                    <button @click="showAddModal = true" 
+                            class="bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors">
+                        <i class="fas fa-plus mr-1"></i>Add
+                    </button>
+                </div>
+
+                <div class="bg-zinc-900 rounded-lg border border-zinc-800 divide-y divide-zinc-800">
+                    <template x-for="server in servers" :key="server.serverId">
+                        <div class="p-4 hover:bg-zinc-800/50 transition-colors">
+                            <div class="flex items-center justify-between">
+                                <!-- Left: Status + Info -->
+                                <div class="flex items-center gap-3">
+                                    <span class="w-2 h-2 rounded-full flex-shrink-0" 
+                                          :class="server.isOnline ? 'bg-green-500' : 'bg-zinc-600'"></span>
+                                    <div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="font-medium text-white" x-text="server.serverName"></span>
+                                            <span x-show="server.isOwner === false" 
+                                                  class="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400"
+                                                  x-text="server.role"></span>
+                                        </div>
+                                        <div class="text-xs text-zinc-500 mt-0.5">
+                                            <span x-text="server.ipAddress + ':' + server.apiPort"></span>
+                                            <span class="mx-1">·</span>
+                                            <span x-text="server.region"></span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Right: Stats + Actions -->
+                                <div class="flex items-center gap-6">
+                                    <div x-show="server.isOnline" class="flex items-center gap-4 text-xs">
+                                        <div class="text-center">
+                                            <span class="text-zinc-500">Servers</span>
+                                            <div class="text-white font-medium">
+                                                <span x-text="getServerStatus(server.serverId)?.onlineServers || 0" class="text-green-500"></span>/<span x-text="getServerStatus(server.serverId)?.totalServers || 0"></span>
+                                            </div>
+                                        </div>
+                                        <div class="text-center">
+                                            <span class="text-zinc-500">Players</span>
+                                            <div class="text-white font-medium" x-text="getServerStatus(server.serverId)?.totalPlayers || 0"></div>
+                                        </div>
+                                        <div class="text-center">
+                                            <span class="text-zinc-500">CPU</span>
+                                            <div class="font-medium" :class="(getServerStatus(server.serverId)?.systemStats?.cpuPercent || 0) > 80 ? 'text-red-400' : 'text-white'"
+                                                 x-text="(getServerStatus(server.serverId)?.systemStats?.cpuPercent || 0).toFixed(0) + '%'"></div>
+                                        </div>
+                                    </div>
+                                    <div x-show="!server.isOnline" class="text-xs text-zinc-500">Offline</div>
+                                    
+                                    <!-- Actions -->
+                                    <div class="flex items-center gap-1">
+                                        <button @click="openServerDetails(server)" 
+                                                class="p-2 text-zinc-500 hover:text-white transition" title="Details">
+                                            <i class="fas fa-chevron-right text-xs"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add/Edit Server Modal -->
+    <div x-show="showAddModal || showEditModal" x-cloak
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+         @click.self="closeModals()">
+        <div class="bg-zinc-900 rounded-lg w-full max-w-md border border-zinc-800">
+            <div class="p-4 border-b border-zinc-800 flex items-center justify-between">
+                <h3 class="font-medium text-white" x-text="showEditModal ? 'Edit Server' : 'Add Server'"></h3>
+                <button @click="closeModals()" class="text-zinc-500 hover:text-white"><i class="fas fa-times"></i></button>
+            </div>
+            <form @submit.prevent="showEditModal ? updateServer() : addServer()" class="p-4 space-y-4">
+                <div>
+                    <label class="block text-xs text-zinc-500 mb-1.5">Server Name</label>
+                    <input type="text" x-model="serverForm.serverName" required
+                           class="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-zinc-600"
+                           placeholder="My HoN Server">
+                </div>
+                <div>
+                    <label class="block text-xs text-zinc-500 mb-1.5">IP Address</label>
+                    <input type="text" x-model="serverForm.ipAddress" required
+                           class="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-zinc-600"
+                           placeholder="123.45.67.89">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs text-zinc-500 mb-1.5">API Port</label>
+                        <input type="number" x-model="serverForm.apiPort"
+                               class="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-zinc-600"
+                               placeholder="5050">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-zinc-500 mb-1.5">Region</label>
+                        <select x-model="serverForm.region"
+                                class="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-zinc-600">
+                            <option value="Unknown">Select</option>
+                            <option value="Asia">Asia</option>
+                            <option value="Europe">Europe</option>
+                            <option value="North America">North America</option>
+                            <option value="South America">South America</option>
+                            <option value="Oceania">Oceania</option>
+                            <option value="Africa">Africa</option>
+                        </select>
+                    </div>
+                </div>
+                <div x-show="formError" class="text-red-400 text-xs bg-red-500/10 rounded p-3">
+                    <span x-text="formError"></span>
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button type="button" @click="closeModals()" 
+                            class="flex-1 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 rounded text-sm transition-colors">Cancel</button>
+                    <button type="submit" :disabled="formLoading"
+                            class="flex-1 px-3 py-2 bg-orange-500 hover:bg-orange-600 rounded text-sm font-medium transition-colors disabled:opacity-50">
+                        <span x-show="!formLoading" x-text="showEditModal ? 'Update' : 'Add'"></span>
+                        <span x-show="formLoading"><i class="fas fa-spinner fa-spin"></i></span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- API Key Modal -->
+    <div x-show="showKeyModal" x-cloak
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+         @click.self="showKeyModal = false">
+        <div class="bg-zinc-900 rounded-lg w-full max-w-lg border border-zinc-800">
+            <div class="p-4 border-b border-zinc-800 flex items-center justify-between">
+                <h3 class="font-medium text-white">API Key</h3>
+                <button @click="showKeyModal = false" class="text-zinc-500 hover:text-white"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-4">
+                <p class="text-xs text-zinc-500 mb-3">Add this key to your config.json:</p>
+                <div class="bg-zinc-950 rounded p-3 font-mono text-xs break-all text-zinc-300 border border-zinc-800">
+                    <span x-text="selectedServer?.apiKey"></span>
+                </div>
+                <button @click="copyApiKey()" class="mt-3 text-xs text-blue-400 hover:text-blue-300">
+                    <i class="fas fa-copy mr-1"></i>Copy
+                </button>
+                <div class="mt-4 bg-zinc-950 rounded p-3 border border-zinc-800">
+                    <pre class="text-xs text-zinc-400 overflow-x-auto">"management_portal": {
+  "enabled": true,
+  "portal_url": "<span x-text="window.location.origin"></span>",
+  "api_key": "<span x-text="selectedServer?.apiKey"></span>"
+}</pre>
+                </div>
+            </div>
+            <div class="p-4 border-t border-zinc-800">
+                <button @click="showKeyModal = false" class="w-full px-3 py-2 bg-zinc-800 hover:bg-zinc-700 rounded text-sm transition-colors">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div x-show="showDeleteModal" x-cloak
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+         @click.self="showDeleteModal = false">
+        <div class="bg-zinc-900 rounded-lg w-full max-w-sm border border-zinc-800">
+            <div class="p-4 border-b border-zinc-800">
+                <h3 class="font-medium text-white">Delete Server</h3>
+            </div>
+            <div class="p-4">
+                <p class="text-sm text-zinc-300">
+                    Delete <span class="text-white font-medium" x-text="selectedServer?.serverName"></span>?
+                </p>
+                <p class="text-xs text-zinc-500 mt-2">This cannot be undone.</p>
+            </div>
+            <div class="p-4 border-t border-zinc-800 flex gap-2">
+                <button @click="showDeleteModal = false" 
+                        class="flex-1 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 rounded text-sm transition-colors">Cancel</button>
+                <button @click="deleteServer()" :disabled="formLoading"
+                        class="flex-1 px-3 py-2 bg-red-600 hover:bg-red-700 rounded text-sm font-medium transition-colors disabled:opacity-50">
+                    <span x-show="!formLoading">Delete</span>
+                    <span x-show="formLoading"><i class="fas fa-spinner fa-spin"></i></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Server Details & Control Modal -->
+    <div x-show="showDetailsModal" x-cloak
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+         @click.self="showDetailsModal = false">
+        <div class="bg-zinc-900 rounded-lg w-full max-w-6xl max-h-[95vh] overflow-hidden flex flex-col border border-zinc-800">
+            <div class="p-4 border-b border-zinc-800 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <span class="w-2.5 h-2.5 rounded-full" :class="selectedServer?.isOnline ? 'bg-green-400' : 'bg-zinc-600'"></span>
+                    <div>
+                        <h3 class="font-medium text-white" x-text="selectedServer?.serverName"></h3>
+                        <span class="text-xs text-zinc-500" x-text="selectedServer?.ipAddress + ':' + selectedServer?.apiPort"></span>
+                    </div>
+                </div>
+                <button @click="showDetailsModal = false" class="text-zinc-500 hover:text-white">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <!-- Tab Navigation -->
+            <div class="border-b border-zinc-800 px-4 flex gap-1">
+                <button @click="activeTab = 'overview'" 
+                        :class="activeTab === 'overview' ? 'border-orange-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'"
+                        class="px-4 py-3 border-b-2 text-sm transition-colors">Overview</button>
+                <button @click="activeTab = 'instances'" 
+                        :class="activeTab === 'instances' ? 'border-orange-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'"
+                        class="px-4 py-3 border-b-2 text-sm transition-colors flex items-center gap-2">
+                    Instances
+                    <span class="px-1.5 py-0.5 text-xs bg-zinc-800 rounded" x-text="(statusData?.instances?.length || 0)"></span>
+                </button>
+                <button @click="activeTab = 'config'" 
+                        :class="activeTab === 'config' ? 'border-orange-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'"
+                        class="px-4 py-3 border-b-2 text-sm transition-colors">Config</button>
+                <button @click="activeTab = 'actions'" 
+                        :class="activeTab === 'actions' ? 'border-orange-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'"
+                        class="px-4 py-3 border-b-2 text-sm transition-colors">Actions</button>
+                <button @click="activeTab = 'access'; loadServerAccess()" 
+                        :class="activeTab === 'access' ? 'border-orange-500 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'"
+                        class="px-4 py-3 border-b-2 text-sm transition-colors">Access</button>
+                <div class="ml-auto flex items-center">
+                    <button @click="refreshServerDetails()" :disabled="detailsLoading"
+                            class="px-3 py-1.5 text-zinc-500 hover:text-white text-sm transition-colors disabled:opacity-50">
+                        <i class="fas fa-sync-alt" :class="detailsLoading ? 'fa-spin' : ''"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="p-4 overflow-y-auto flex-1">
+                <!-- ==================== OVERVIEW TAB ==================== -->
+                <div x-show="activeTab === 'overview'">
+                    <!-- Server Manager Section -->
+                <div class="bg-zinc-800/50 rounded-lg p-4 mb-4 border border-zinc-800">
+                    <h4 class="text-sm font-medium mb-4 text-zinc-400">Server Manager</h4>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <!-- Running Servers -->
+                        <div class="bg-zinc-900 rounded p-4 text-center border border-zinc-800">
+                            <div class="text-3xl font-bold text-white" 
+                                 x-text="statusData?.running_servers || statusData?.runningServers || 0"></div>
+                            <div class="text-xs text-zinc-500">Running</div>
+                        </div>
+                        
+                        <!-- Target Servers -->
+                        <div class="bg-zinc-900 rounded p-4 border border-zinc-800">
+                            <div class="text-xs text-zinc-500 mb-2 text-center">Target</div>
+                            <div class="flex items-center justify-center gap-2">
+                                <button @click="targetServers = Math.max(0, targetServers - 1)"
+                                        class="w-8 h-8 bg-zinc-700 hover:bg-zinc-600 rounded flex items-center justify-center text-sm transition-colors">
+                                    <i class="fas fa-minus"></i>
+                                </button>
+                                <input type="number" x-model="targetServers" min="0" max="20"
+                                       class="w-12 h-8 bg-zinc-800 border border-zinc-700 rounded text-center font-medium">
+                                <button @click="targetServers = Math.min(20, targetServers + 1)"
+                                        class="w-8 h-8 bg-zinc-700 hover:bg-zinc-600 rounded flex items-center justify-center text-sm transition-colors">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Quick Scale -->
+                        <div class="bg-zinc-900 rounded p-4 border border-zinc-800">
+                            <div class="text-xs text-zinc-500 mb-2 text-center">Quick</div>
+                            <div class="flex items-center justify-center gap-1">
+                                <template x-for="n in [1, 2, 4, 8, 0]" :key="n">
+                                    <button @click="targetServers = n; applyScale()"
+                                            :class="targetServers === n ? 'bg-orange-500 text-white' : 'bg-zinc-700 hover:bg-zinc-600'"
+                                            class="w-8 h-8 rounded flex items-center justify-center text-sm font-medium transition-colors"
+                                            x-text="n"></button>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button @click="applyScale()" :disabled="controlLoading"
+                            class="w-full py-2 bg-orange-500 hover:bg-orange-600 rounded text-sm font-medium transition-colors disabled:opacity-50">
+                        Apply Changes
+                    </button>
+                </div>
+                
+                <!-- Connection Status -->
+                <div class="bg-zinc-800/50 rounded-lg p-4 mb-4 border border-zinc-800">
+                    <h4 class="text-sm font-medium mb-3 text-zinc-400">Connections</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full" 
+                                  :class="statusData?.master_server_connected || statusData?.masterServerConnected ? 'bg-green-400' : 'bg-zinc-600'"></span>
+                            <div>
+                                <div class="text-xs text-zinc-500">Master</div>
+                                <div class="text-sm" 
+                                     :class="statusData?.master_server_connected || statusData?.masterServerConnected ? 'text-green-400' : 'text-zinc-600'"
+                                     x-text="statusData?.master_server_connected || statusData?.masterServerConnected ? 'Online' : 'Offline'"></div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full" 
+                                  :class="statusData?.chat_server_connected || statusData?.chatServerConnected ? 'bg-green-400' : 'bg-zinc-600'"></span>
+                            <div>
+                                <div class="text-xs text-zinc-500">Chat</div>
+                                <div class="text-sm" 
+                                     :class="statusData?.chat_server_connected || statusData?.chatServerConnected ? 'text-green-400' : 'text-zinc-600'"
+                                     x-text="statusData?.chat_server_connected || statusData?.chatServerConnected ? 'Online' : 'Offline'"></div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-green-400"></span>
+                            <div>
+                                <div class="text-xs text-zinc-500">Portal</div>
+                                <div class="text-sm text-green-400">OK</div>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="text-xs text-zinc-500">Version</div>
+                            <div class="text-sm text-white" x-text="statusData?.hon_version || statusData?.honVersion || '-'"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- System Stats -->
+                <div class="bg-zinc-800/50 rounded-lg p-4 border border-zinc-800">
+                    <h4 class="text-sm font-medium mb-3 text-zinc-400">System</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div class="text-center">
+                            <div class="text-xs text-zinc-500 mb-1">CPU</div>
+                            <div class="text-xl font-medium" 
+                                 :class="(statusData?.system_stats?.cpu_percent || statusData?.systemStats?.cpuPercent || 0) > 80 ? 'text-red-400' : 'text-white'"
+                                 x-text="(statusData?.system_stats?.cpu_percent || statusData?.systemStats?.cpuPercent || 0).toFixed(1) + '%'"></div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-xs text-zinc-500 mb-1">Memory</div>
+                            <div class="text-xl font-medium text-white"
+                                 x-text="(statusData?.system_stats?.memory_percent || statusData?.systemStats?.memoryPercent || 0).toFixed(1) + '%'"></div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-xs text-zinc-500 mb-1">Uptime</div>
+                            <div class="text-xl font-medium text-white"
+                                 x-text="formatUptime(statusData?.system_stats?.uptime_seconds || statusData?.systemStats?.uptimeSeconds)"></div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-xs text-zinc-500 mb-1">Players</div>
+                            <div class="text-xl font-medium text-white"
+                                 x-text="statusData?.players_online || statusData?.playersOnline || 0"></div>
+                        </div>
+                    </div>
+                </div>
+                </div>
+                
+                <!-- ==================== INSTANCES TAB ==================== -->
+                <div x-show="activeTab === 'instances'">
+                <!-- Game Instances Section -->
+                <div class="bg-zinc-800/50 rounded-lg p-4 border border-zinc-800">
+                    <!-- Header -->
+                    <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+                        <span class="text-sm text-zinc-400">Instances <span x-text="filteredInstances.length + '/' + (statusData?.total_servers || statusData?.totalServers || 0)"></span></span>
+                        
+                        <!-- Search, Filter & Sort -->
+                        <div class="flex items-center gap-2">
+                            <input type="text" x-model="instanceSearch" placeholder="Search..."
+                                   class="w-28 h-7 bg-zinc-900 border border-zinc-700 rounded px-2 text-xs">
+                            <select x-model="instanceFilter" class="h-7 bg-zinc-900 border border-zinc-700 rounded text-xs px-1">
+                                <option value="all">All</option>
+                                <option value="Ready">Ready</option>
+                                <option value="Occupied">Occupied</option>
+                                <option value="Offline">Offline</option>
+                            </select>
+                            <select x-model="instanceSort" class="h-7 bg-zinc-900 border border-zinc-700 rounded text-xs px-1">
+                                <option value="id">ID</option>
+                                <option value="status">Status</option>
+                                <option value="port">Port</option>
+                                <option value="players">Players</option>
+                            </select>
+                            <button @click="instanceSortAsc = !instanceSortAsc" 
+                                    class="h-7 w-7 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded flex items-center justify-center text-xs transition-colors">
+                                <i class="fas" :class="instanceSortAsc ? 'fa-sort-up' : 'fa-sort-down'"></i>
+                            </button>
+                            <div class="flex border border-zinc-700 rounded overflow-hidden">
+                                <button @click="instanceViewMode = 'grid'" 
+                                        :class="instanceViewMode === 'grid' ? 'bg-zinc-700' : 'bg-zinc-800 hover:bg-zinc-700'"
+                                        class="h-7 w-7 flex items-center justify-center text-xs transition-colors">
+                                    <i class="fas fa-th"></i>
+                                </button>
+                                <button @click="instanceViewMode = 'list'" 
+                                        :class="instanceViewMode === 'list' ? 'bg-zinc-700' : 'bg-zinc-800 hover:bg-zinc-700'"
+                                        class="h-7 w-7 flex items-center justify-center text-xs transition-colors">
+                                    <i class="fas fa-list"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div x-show="!filteredInstances.length" class="text-zinc-500 text-center py-8 text-sm">
+                        No instances found
+                    </div>
+
+                    <!-- Table View (List Mode) -->
+                    <div x-show="instanceViewMode === 'list' && filteredInstances.length" class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="border-b border-zinc-700 text-left text-xs text-zinc-500">
+                                    <th class="pb-2 pl-2">ID</th>
+                                    <th class="pb-2">Status</th>
+                                    <th class="pb-2">Port</th>
+                                    <th class="pb-2">Players</th>
+                                    <th class="pb-2">Phase</th>
+                                    <th class="pb-2">Uptime</th>
+                                    <th class="pb-2 text-right pr-2">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="instance in sortedInstances" :key="instance.id">
+                                    <tr class="border-b border-zinc-800 hover:bg-zinc-800/50">
+                                        <td class="py-2 pl-2 text-zinc-400" x-text="'#' + instance.id"></td>
+                                        <td class="py-2">
+                                            <span class="flex items-center gap-1.5">
+                                                <span class="w-1.5 h-1.5 rounded-full" :class="getStatusDotClass(instance)"></span>
+                                                <span class="text-xs" x-text="instance.status || 'Unknown'"></span>
+                                            </span>
+                                        </td>
+                                        <td class="py-2" x-text="instance.port"></td>
+                                        <td class="py-2" x-text="(instance.num_clients ?? instance.numClients ?? 0) + '/10'"></td>
+                                        <td class="py-2 text-xs text-zinc-400" x-text="instance.game_phase || instance.gamePhase || 'Idle'"></td>
+                                        <td class="py-2 text-xs text-zinc-500" x-text="formatInstanceUptime(instance.start_time || instance.startTime)"></td>
+                                        <td class="py-2 pr-2">
+                                            <div class="flex items-center gap-1 justify-end">
+                                                <button @click="startInstance(instance.id)" :disabled="isStartDisabled(instance)"
+                                                        class="w-6 h-6 bg-zinc-700 hover:bg-green-600 rounded flex items-center justify-center text-xs transition-colors disabled:opacity-30">
+                                                    <i class="fas fa-play"></i>
+                                                </button>
+                                                <button @click="stopInstance(instance.id)" :disabled="isStopDisabled(instance)"
+                                                        class="w-6 h-6 bg-zinc-700 hover:bg-red-600 rounded flex items-center justify-center text-xs transition-colors disabled:opacity-30">
+                                                    <i class="fas fa-stop"></i>
+                                                </button>
+                                                <button @click="restartInstance(instance.id)" :disabled="controlLoading"
+                                                        class="w-6 h-6 bg-zinc-700 hover:bg-orange-600 rounded flex items-center justify-center text-xs transition-colors disabled:opacity-30">
+                                                    <i class="fas fa-sync-alt"></i>
+                                                </button>
+                                                <button @click="deleteInstance(instance.id)" :disabled="controlLoading"
+                                                        class="w-6 h-6 bg-zinc-700 hover:bg-zinc-600 rounded flex items-center justify-center text-xs transition-colors disabled:opacity-30">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Grid View -->
+                    <div x-show="instanceViewMode === 'grid' && filteredInstances.length" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                        <template x-for="instance in sortedInstances" :key="instance.id">
+                            <div class="bg-zinc-900 rounded p-3 border border-zinc-800 hover:border-zinc-700 transition-colors">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <span class="w-2 h-2 rounded-full" :class="getStatusDotClass(instance)"></span>
+                                    <span class="text-sm" x-text="'#' + instance.id"></span>
+                                    <span class="text-xs text-zinc-500" x-text="instance.status || 'Unknown'"></span>
+                                </div>
+                                <div class="text-xs text-zinc-500 space-y-1 mb-3">
+                                    <div class="flex justify-between">
+                                        <span>Port</span>
+                                        <span class="text-white" x-text="instance.port"></span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>Players</span>
+                                        <span class="text-white" x-text="(instance.num_clients ?? instance.numClients ?? 0) + '/10'"></span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>Phase</span>
+                                        <span class="text-zinc-400" x-text="instance.game_phase || instance.gamePhase || 'Idle'"></span>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-1">
+                                    <button @click="startInstance(instance.id)" :disabled="isStartDisabled(instance)"
+                                            class="flex-1 h-7 bg-zinc-800 hover:bg-green-600 rounded text-xs transition-colors disabled:opacity-30">
+                                        <i class="fas fa-play"></i>
+                                    </button>
+                                    <button @click="stopInstance(instance.id)" :disabled="isStopDisabled(instance)"
+                                            class="flex-1 h-7 bg-zinc-800 hover:bg-red-600 rounded text-xs transition-colors disabled:opacity-30">
+                                        <i class="fas fa-stop"></i>
+                                    </button>
+                                    <button @click="restartInstance(instance.id)" :disabled="controlLoading"
+                                            class="flex-1 h-7 bg-zinc-800 hover:bg-orange-600 rounded text-xs transition-colors disabled:opacity-30">
+                                        <i class="fas fa-sync-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                    
+                    <!-- Add Instance Button -->
+                    <button @click="addNewInstance()" :disabled="controlLoading"
+                            class="mt-4 w-full py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded text-sm transition-colors disabled:opacity-50">
+                        <i class="fas fa-plus mr-2"></i>Add Instance
+                    </button>
+                </div>
+                </div>
+                
+                <!-- ==================== CONFIGURATION TAB ==================== -->
+                <div x-show="activeTab === 'config'">
+                    <!-- Server Settings -->
+                    <div class="bg-zinc-800/50 rounded-lg p-4 mb-4 border border-zinc-800">
+                        <h4 class="text-sm font-medium mb-4 text-zinc-400">Server Settings</h4>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <!-- Name -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Name</label>
+                                <input type="text" x-model="serverConfig.svr_name" 
+                                       class="w-full h-8 bg-zinc-900 border border-zinc-700 rounded px-2 text-sm focus:border-zinc-600 focus:outline-none">
+                            </div>
+                            
+                            <!-- Location -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Location</label>
+                                <input type="text" x-model="serverConfig.svr_location" 
+                                       class="w-full h-8 bg-zinc-900 border border-zinc-700 rounded px-2 text-sm focus:outline-none">
+                            </div>
+                            
+                            <!-- Priority -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Priority</label>
+                                <select x-model="serverConfig.svr_priority" 
+                                        class="w-full h-8 bg-zinc-900 border border-zinc-700 rounded px-2 text-sm focus:outline-none">
+                                    <option value="LOW">LOW</option>
+                                    <option value="MEDIUM">MEDIUM</option>
+                                    <option value="HIGH">HIGH</option>
+                                </select>
+                            </div>
+                            
+                            <!-- Total -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Total</label>
+                                <input type="number" x-model="serverConfig.svr_total" min="0" max="20"
+                                       class="w-full h-8 bg-zinc-900 border border-zinc-700 rounded px-2 text-sm focus:outline-none">
+                            </div>
+                            
+                            <!-- Enable Bot Match -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Bot Match</label>
+                                <button :class="serverConfig.svr_enableBotMatch ? 'bg-green-600' : 'bg-zinc-800'" 
+                                     class="w-full h-8 rounded px-2 text-sm flex items-center justify-between border border-zinc-700 transition-colors"
+                                     @click="serverConfig.svr_enableBotMatch = !serverConfig.svr_enableBotMatch">
+                                    <span x-text="serverConfig.svr_enableBotMatch ? 'On' : 'Off'"></span>
+                                    <span class="w-2 h-2 rounded-full" :class="serverConfig.svr_enableBotMatch ? 'bg-white' : 'bg-zinc-600'"></span>
+                                </button>
+                            </div>
+                            
+                            <!-- Start On Launch -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Auto Start</label>
+                                <button :class="serverConfig.svr_start_on_launch ? 'bg-green-600' : 'bg-zinc-800'" 
+                                     class="w-full h-8 rounded px-2 text-sm flex items-center justify-between border border-zinc-700 transition-colors"
+                                     @click="serverConfig.svr_start_on_launch = !serverConfig.svr_start_on_launch">
+                                    <span x-text="serverConfig.svr_start_on_launch ? 'On' : 'Off'"></span>
+                                    <span class="w-2 h-2 rounded-full" :class="serverConfig.svr_start_on_launch ? 'bg-white' : 'bg-zinc-600'"></span>
+                                </button>
+                            </div>
+                            
+                            <!-- No Console -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">No Console</label>
+                                <button :class="serverConfig.svr_noConsole ? 'bg-green-600' : 'bg-zinc-800'" 
+                                     class="w-full h-8 rounded px-2 text-sm flex items-center justify-between border border-zinc-700 transition-colors"
+                                     @click="serverConfig.svr_noConsole = !serverConfig.svr_noConsole">
+                                    <span x-text="serverConfig.svr_noConsole ? 'On' : 'Off'"></span>
+                                    <span class="w-2 h-2 rounded-full" :class="serverConfig.svr_noConsole ? 'bg-white' : 'bg-zinc-600'"></span>
+                                </button>
+                            </div>
+                            
+                            <!-- Max Start At Once -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Max Start</label>
+                                <input type="number" x-model="serverConfig.svr_max_start_at_once" min="1" max="10"
+                                       class="w-full h-8 bg-zinc-900 border border-zinc-700 rounded px-2 text-sm focus:outline-none">
+                            </div>
+                            
+                            <!-- Startup Timeout -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Timeout</label>
+                                <input type="number" x-model="serverConfig.svr_startup_timeout" min="30" max="600"
+                                       class="w-full h-8 bg-zinc-900 border border-zinc-700 rounded px-2 text-sm focus:outline-none">
+                            </div>
+                            
+                            <!-- Restart Between Games -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Restart Games</label>
+                                <button :class="serverConfig.svr_restart_between_games ? 'bg-green-600' : 'bg-zinc-800'" 
+                                     class="w-full h-8 rounded px-2 text-sm flex items-center justify-between border border-zinc-700 transition-colors"
+                                     @click="serverConfig.svr_restart_between_games = !serverConfig.svr_restart_between_games">
+                                    <span x-text="serverConfig.svr_restart_between_games ? 'On' : 'Off'"></span>
+                                    <span class="w-2 h-2 rounded-full" :class="serverConfig.svr_restart_between_games ? 'bg-white' : 'bg-zinc-600'"></span>
+                                </button>
+                            </div>
+                            
+                            <!-- Master Server -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Master Server</label>
+                                <input type="text" x-model="serverConfig.svr_masterServer" 
+                                       class="w-full h-8 bg-zinc-900 border border-zinc-700 rounded px-2 text-sm focus:outline-none">
+                            </div>
+                            
+                            <!-- Chat Server -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Chat Server</label>
+                                <input type="text" x-model="serverConfig.svr_chatServer" 
+                                       class="w-full h-8 bg-zinc-900 border border-zinc-700 rounded px-2 text-sm focus:outline-none">
+                            </div>
+                            
+                            <!-- Patch Server -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Patch Server</label>
+                                <input type="text" x-model="serverConfig.svr_patchServer" 
+                                       class="w-full h-8 bg-zinc-900 border border-zinc-700 rounded px-2 text-sm focus:outline-none">
+                            </div>
+                            
+                            <!-- Starting Game Port -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Game Port</label>
+                                <input type="number" x-model="serverConfig.svr_starting_gamePort" 
+                                       class="w-full h-8 bg-zinc-900 border border-zinc-700 rounded px-2 text-sm focus:outline-none">
+                            </div>
+                            
+                            <!-- Starting Voice Port -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Voice Port</label>
+                                <input type="number" x-model="serverConfig.svr_starting_voicePort" disabled
+                                       class="w-full h-8 bg-zinc-950 border border-zinc-800 rounded px-2 text-sm text-zinc-600">
+                            </div>
+                            
+                            <!-- Api Port -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">API Port</label>
+                                <input type="number" x-model="serverConfig.svr_api_port" 
+                                       class="w-full h-8 bg-zinc-900 border border-zinc-700 rounded px-2 text-sm focus:outline-none">
+                            </div>
+                            
+                            <!-- Max Clients -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Max Clients</label>
+                                <input type="number" x-model="serverConfig.svr_maxClients" min="1" max="20"
+                                       class="w-full h-8 bg-zinc-900 border border-zinc-700 rounded px-2 text-sm focus:outline-none">
+                            </div>
+                            
+                            <!-- Manager Port -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Manager Port</label>
+                                <input type="number" x-model="serverConfig.svr_managerPort" disabled
+                                       class="w-full h-8 bg-zinc-950 border border-zinc-800 rounded px-2 text-sm text-zinc-600">
+                            </div>
+                            
+                            <!-- Beta Mode -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Beta Mode</label>
+                                <input type="text" :value="serverConfig.svr_beta_mode ? 'true' : 'false'" disabled
+                                       class="w-full h-8 bg-zinc-950 border border-zinc-800 rounded px-2 text-sm text-zinc-600">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Manager Settings -->
+                    <div class="bg-zinc-800/50 rounded-lg p-4 mb-4 border border-zinc-800">
+                        <h4 class="text-sm font-medium mb-3 text-zinc-400">Manager Settings</h4>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <!-- Enable Proxy -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Proxy</label>
+                                <button :class="serverConfig.man_enableProxy ? 'bg-green-600' : 'bg-zinc-800'" 
+                                     class="w-full h-8 rounded px-2 text-sm flex items-center justify-between border border-zinc-700 transition-colors"
+                                     @click="serverConfig.man_enableProxy = !serverConfig.man_enableProxy">
+                                    <span x-text="serverConfig.man_enableProxy ? 'On' : 'Off'"></span>
+                                    <span class="w-2 h-2 rounded-full" :class="serverConfig.man_enableProxy ? 'bg-white' : 'bg-zinc-600'"></span>
+                                </button>
+                            </div>
+                            
+                            <!-- Use Cowmaster -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Cowmaster</label>
+                                <button :class="serverConfig.man_use_cowmaster ? 'bg-green-600' : 'bg-zinc-800'" 
+                                     class="w-full h-8 rounded px-2 text-sm flex items-center justify-between border border-zinc-700 transition-colors"
+                                     @click="serverConfig.man_use_cowmaster = !serverConfig.man_use_cowmaster">
+                                    <span x-text="serverConfig.man_use_cowmaster ? 'On' : 'Off'"></span>
+                                    <span class="w-2 h-2 rounded-full" :class="serverConfig.man_use_cowmaster ? 'bg-white' : 'bg-zinc-600'"></span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Other Settings -->
+                    <div class="bg-zinc-800/50 rounded-lg p-4 mb-4 border border-zinc-800">
+                        <h4 class="text-sm font-medium mb-3 text-zinc-400">Directories</h4>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <!-- Hon Install Directory -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Install Directory</label>
+                                <input type="text" x-model="serverConfig.hon_install_directory" 
+                                       class="w-full h-8 bg-zinc-900 border border-zinc-700 rounded px-2 text-sm focus:outline-none">
+                            </div>
+                            
+                            <!-- Hon Home Directory -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Home Directory</label>
+                                <input type="text" x-model="serverConfig.hon_home_directory" 
+                                       class="w-full h-8 bg-zinc-900 border border-zinc-700 rounded px-2 text-sm focus:outline-none">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Save Button -->
+                    <div class="flex gap-2">
+                        <button @click="loadServerConfig()" :disabled="controlLoading"
+                                class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded text-sm transition-colors disabled:opacity-50">Reset</button>
+                        <button @click="saveFullConfig()" :disabled="controlLoading"
+                                class="flex-1 px-4 py-2 bg-orange-500 hover:bg-orange-600 rounded text-sm font-medium transition-colors disabled:opacity-50">Save Config</button>
+                    </div>
+                </div>
+                
+                <!-- ==================== ACTIONS TAB ==================== -->
+                <div x-show="activeTab === 'actions'">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Server Control -->
+                        <div class="bg-zinc-800/50 rounded-lg p-4 border border-zinc-800">
+                            <h4 class="text-sm font-medium mb-3 text-zinc-400">Server Control</h4>
+                            <div class="space-y-2">
+                                <button @click="startAllInstances()" :disabled="controlLoading"
+                                        class="w-full px-3 py-2 bg-zinc-700 hover:bg-green-600 rounded text-sm transition-colors disabled:opacity-50">
+                                    <i class="fas fa-play mr-2"></i>Start All
+                                </button>
+                                <button @click="stopAllInstances()" :disabled="controlLoading"
+                                        class="w-full px-3 py-2 bg-zinc-700 hover:bg-red-600 rounded text-sm transition-colors disabled:opacity-50">
+                                    <i class="fas fa-stop mr-2"></i>Stop All
+                                </button>
+                                <button @click="restartAllInstances()" :disabled="controlLoading"
+                                        class="w-full px-3 py-2 bg-zinc-700 hover:bg-orange-600 rounded text-sm transition-colors disabled:opacity-50">
+                                    <i class="fas fa-sync-alt mr-2"></i>Restart All
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Instance Management -->
+                        <div class="bg-zinc-800/50 rounded-lg p-4 border border-zinc-800">
+                            <h4 class="text-sm font-medium mb-3 text-zinc-400">Instances</h4>
+                            <div class="space-y-2">
+                                <button @click="addNewInstance()" :disabled="controlLoading"
+                                        class="w-full px-3 py-2 bg-zinc-700 hover:bg-zinc-600 rounded text-sm transition-colors disabled:opacity-50">
+                                    <i class="fas fa-plus mr-2"></i>Add Instance
+                                </button>
+                                <button @click="deleteAllInstances()" :disabled="controlLoading"
+                                        class="w-full px-3 py-2 bg-zinc-700 hover:bg-red-600 rounded text-sm transition-colors disabled:opacity-50">
+                                    <i class="fas fa-trash mr-2"></i>Delete All
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Communication -->
+                        <div class="bg-zinc-800/50 rounded-lg p-4 border border-zinc-800">
+                            <h4 class="text-sm font-medium mb-3 text-zinc-400">Broadcast</h4>
+                            <div class="space-y-2">
+                                <textarea x-model="broadcastMessage" rows="2"
+                                          class="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1.5 text-sm focus:outline-none"
+                                          placeholder="Message..."></textarea>
+                                <button @click="sendBroadcast()" :disabled="!broadcastMessage || controlLoading"
+                                        class="w-full px-3 py-2 bg-zinc-700 hover:bg-purple-600 rounded text-sm transition-colors disabled:opacity-50">
+                                    <i class="fas fa-paper-plane mr-2"></i>Send
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Quick Scale -->
+                        <div class="bg-zinc-800/50 rounded-lg p-4 border border-zinc-800">
+                            <h4 class="text-sm font-medium mb-3 text-zinc-400">Quick Scale</h4>
+                            <div class="grid grid-cols-5 gap-1">
+                                <template x-for="n in [0, 1, 2, 4, 8]" :key="n">
+                                    <button @click="targetServers = n; applyScale()"
+                                            :class="targetServers === n ? 'bg-orange-500' : 'bg-zinc-700 hover:bg-zinc-600'"
+                                            class="py-2 rounded text-sm font-medium transition-colors"
+                                            x-text="n"></button>
+                                </template>
+                            </div>
+                            <p class="text-xs text-zinc-500 mt-2 text-center">Click to scale</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- ==================== ACCESS TAB ==================== -->
+                <div x-show="activeTab === 'access'">
+                    <div class="bg-zinc-800/50 rounded-lg p-4 border border-zinc-800">
+                        <div class="flex items-center justify-between mb-4">
+                            <span class="text-sm text-zinc-400">Shared Access</span>
+                            <button @click="showAddAccessModal = true"
+                                    class="px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 rounded text-xs transition-colors">
+                                <i class="fas fa-plus mr-1"></i>Add User
+                            </button>
+                        </div>
+
+                        <div x-show="accessLoading" class="text-center py-6 text-zinc-500">
+                            <i class="fas fa-spinner fa-spin"></i>
+                        </div>
+
+                        <div x-show="!accessLoading && serverAccessList.length === 0" class="text-center py-6 text-zinc-500 text-sm">
+                            No users have access yet
+                        </div>
+
+                        <div x-show="!accessLoading && serverAccessList.length > 0" class="space-y-2">
+                            <template x-for="access in serverAccessList" :key="access.id">
+                                <div class="bg-zinc-900 rounded p-3 flex items-center justify-between border border-zinc-800">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden">
+                                            <img x-show="access.avatar_url || access.avatarUrl" :src="access.avatar_url || access.avatarUrl" class="w-full h-full object-cover">
+                                            <i x-show="!access.avatar_url && !access.avatarUrl" class="fas fa-user text-zinc-600 text-xs"></i>
+                                        </div>
+                                        <div>
+                                            <div class="text-sm">
+                                                <span x-show="access.username" x-text="access.username"></span>
+                                                <span x-show="!access.username" class="text-zinc-500">Unknown</span>
+                                            </div>
+                                            <div class="text-xs text-zinc-500" x-text="access.discord_id || access.discordId"></div>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <select x-model="access.role" @change="updateAccessRole(access)"
+                                                class="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs">
+                                            <option value="0">Viewer</option>
+                                            <option value="1">Operator</option>
+                                            <option value="2">Admin</option>
+                                            <option value="3">Owner</option>
+                                        </select>
+                                        <button @click="removeAccess(access)" 
+                                                class="text-zinc-500 hover:text-red-400 transition-colors text-sm">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+
+                        <div class="mt-4 pt-4 border-t border-zinc-800 text-xs text-zinc-500 space-y-1">
+                            <div><span class="text-zinc-400">Viewer:</span> View status</div>
+                            <div><span class="text-zinc-400">Operator:</span> Start/stop instances</div>
+                            <div><span class="text-zinc-400">Admin:</span> Full control + config</div>
+                            <div><span class="text-zinc-400">Owner:</span> Full ownership</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 border-t border-zinc-800">
+                <button @click="showDetailsModal = false" class="w-full px-3 py-2 bg-zinc-800 hover:bg-zinc-700 rounded text-sm transition-colors">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Access Modal -->
+    <div x-show="showAddAccessModal" x-cloak
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+         @click.self="showAddAccessModal = false">
+        <div class="bg-zinc-900 rounded-lg w-full max-w-sm border border-zinc-800">
+            <div class="p-4 border-b border-zinc-800">
+                <h3 class="font-medium text-white">Add User Access</h3>
+            </div>
+            <div class="p-4 space-y-3">
+                <div>
+                    <label class="block text-xs text-zinc-500 mb-1">Discord User ID *</label>
+                    <input type="text" x-model="addAccessForm.discordId" 
+                           class="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-sm focus:outline-none"
+                           placeholder="123456789012345678">
+                    <p class="text-xs text-zinc-500 mt-1">Right-click user on Discord → Copy ID</p>
+                </div>
+                
+                <div>
+                    <label class="block text-xs text-zinc-500 mb-1">Role</label>
+                    <select x-model="addAccessForm.role"
+                            class="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-sm focus:outline-none">
+                        <option value="0">Viewer</option>
+                        <option value="1">Operator</option>
+                        <option value="2">Admin</option>
+                        <option value="3">Owner</option>
+                    </select>
+                </div>
+
+                <div x-show="accessFormError" class="text-red-400 text-xs bg-red-500/10 rounded p-2">
+                    <span x-text="accessFormError"></span>
+                </div>
+            </div>
+            <div class="p-4 border-t border-zinc-800 flex gap-2">
+                <button @click="showAddAccessModal = false; accessFormError = ''" 
+                        class="flex-1 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 rounded text-sm transition-colors">Cancel</button>
+                <button @click="addAccess()" :disabled="accessFormLoading"
+                        class="flex-1 px-3 py-2 bg-orange-500 hover:bg-orange-600 rounded text-sm font-medium transition-colors disabled:opacity-50">
+                    <span x-show="!accessFormLoading">Add</span>
+                    <span x-show="accessFormLoading"><i class="fas fa-spinner fa-spin"></i></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Broadcast Message Modal -->
+    <div x-show="showBroadcastModal" x-cloak
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+         @click.self="showBroadcastModal = false">
+        <div class="bg-zinc-900 rounded-lg w-full max-w-sm border border-zinc-800">
+            <div class="p-4 border-b border-zinc-800">
+                <h3 class="font-medium text-white">Broadcast Message</h3>
+            </div>
+            <div class="p-4">
+                <label class="block text-xs text-zinc-500 mb-1">Message</label>
+                <textarea x-model="broadcastMessage" rows="3"
+                          class="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-sm focus:outline-none resize-none"
+                          placeholder="Enter message..."></textarea>
+            </div>
+            <div class="p-4 border-t border-zinc-800 flex gap-2">
+                <button @click="showBroadcastModal = false" 
+                        class="flex-1 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 rounded text-sm transition-colors">Cancel</button>
+                <button @click="sendBroadcast()" :disabled="!broadcastMessage || controlLoading"
+                        class="flex-1 px-3 py-2 bg-orange-500 hover:bg-orange-600 rounded text-sm font-medium transition-colors disabled:opacity-50">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SuperAdmin Panel Modal -->
+    <div x-show="showAdminPanel" x-cloak
+         class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+         @click.self="showAdminPanel = false">
+        <div class="bg-zinc-900 rounded-lg w-full max-w-2xl max-h-[80vh] flex flex-col border border-zinc-800">
+            <div class="p-4 border-b border-zinc-800 flex items-center justify-between">
+                <h3 class="font-medium text-white flex items-center gap-2">
+                    <i class="fas fa-shield-alt text-red-400"></i>
+                    SuperAdmin Panel
+                </h3>
+                <button @click="showAdminPanel = false" class="text-zinc-500 hover:text-white">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="p-4 overflow-y-auto flex-1">
+                <div x-show="adminLoading" class="text-center py-6 text-zinc-500">
+                    <i class="fas fa-spinner fa-spin"></i>
+                </div>
+                
+                <!-- Users List -->
+                <div x-show="!adminLoading">
+                    <div class="text-xs text-zinc-500 mb-3">Users (<span x-text="adminUsers.length"></span>)</div>
+                    
+                    <div class="space-y-2">
+                        <template x-for="u in adminUsers" :key="u.id">
+                            <div class="flex items-center justify-between p-3 bg-zinc-800/50 rounded border border-zinc-800">
+                                <div class="flex items-center gap-3">
+                                    <img :src="u.avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'" 
+                                         class="w-8 h-8 rounded-full">
+                                    <div>
+                                        <div class="flex items-center gap-2">
+                                            <span x-text="u.username" class="text-sm"></span>
+                                            <span x-show="u.isSuperAdmin" class="text-xs text-red-400">
+                                                <i class="fas fa-shield-alt"></i>
+                                            </span>
+                                        </div>
+                                        <div class="text-xs text-zinc-500">
+                                            <span x-text="u.serverCount"></span> servers
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex items-center gap-2">
+                                    <template x-if="u.id !== user?.id">
+                                        <button @click="toggleSuperAdmin(u)"
+                                                class="px-2 py-1 text-xs rounded transition-colors"
+                                                :class="u.isSuperAdmin 
+                                                    ? 'bg-zinc-700 hover:bg-zinc-600 text-zinc-300' 
+                                                    : 'bg-red-500/20 hover:bg-red-500/30 text-red-400'">
+                                            <span x-text="u.isSuperAdmin ? 'Remove' : 'Make Admin'"></span>
+                                        </button>
+                                    </template>
+                                    <template x-if="u.id === user?.id">
+                                        <span class="text-xs text-zinc-600">You</span>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                    
+                    <div x-show="adminUsers.length === 0" class="text-center py-6 text-zinc-500 text-sm">
+                        No users found
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function portalApp() {
+            return {
+                user: null,
+                token: null,
+                servers: [],
+                serverStatuses: {},
+                dashboard: {
+                    totalServers: 0,
+                    onlineServers: 0,
+                    totalGameServers: 0,
+                    activeGameServers: 0,
+                    activeMatches: 0,
+                    totalPlayers: 0
+                },
+                loading: true,
+                hubConnection: null,
+                hubConnected: false,
+                
+                // Modals
+                showAddModal: false,
+                showEditModal: false,
+                showKeyModal: false,
+                showDeleteModal: false,
+                showDetailsModal: false,
+                showBroadcastModal: false,
+                showAddAccessModal: false,
+                showAdminPanel: false,
+                selectedServer: null,
+                serverDetails: null,
+                detailsLoading: false,
+                controlLoading: false,
+                activeTab: 'overview',
+                
+                // SuperAdmin Panel
+                adminUsers: [],
+                adminLoading: false,
+                
+                // Access Management
+                serverAccessList: [],
+                accessLoading: false,
+                accessFormLoading: false,
+                accessFormError: '',
+                addAccessForm: {
+                    discordId: '',
+                    role: 0
+                },
+                
+                // Server Manager Settings
+                targetServers: 1,
+                proxyEnabled: true,
+                basePort: 10001,
+                maxPlayers: 10,
+                instanceSearch: '',
+                instanceFilter: 'all',
+                instanceSort: 'id',
+                instanceSortAsc: true,
+                instanceViewMode: 'list',
+                broadcastMessage: '',
+                
+                // Full Config
+                serverConfig: {
+                    svr_name: '',
+                    svr_location: 'NEWERTH',
+                    svr_priority: 'HIGH',
+                    svr_total: 1,
+                    svr_enableBotMatch: true,
+                    svr_start_on_launch: false,
+                    svr_noConsole: true,
+                    svr_max_start_at_once: 5,
+                    svr_startup_timeout: 180,
+                    svr_restart_between_games: false,
+                    svr_masterServer: '',
+                    svr_chatServer: '',
+                    svr_patchServer: 'api.kongor.net/patches',
+                    svr_starting_gamePort: 10001,
+                    svr_starting_voicePort: 10061,
+                    svr_api_port: 5050,
+                    svr_maxClients: 10,
+                    svr_managerPort: 11235,
+                    svr_beta_mode: false,
+                    man_enableProxy: true,
+                    man_use_cowmaster: false,
+                    hon_install_directory: '',
+                    hon_home_directory: ''
+                },
+                
+                // Form
+                serverForm: {
+                    serverName: '',
+                    ipAddress: '',
+                    apiPort: 5050,
+                    region: 'Unknown'
+                },
+                formError: '',
+                formLoading: false,
+
+                // Computed property to get status data (liveData first, then cachedStatus)
+                get statusData() {
+                    return this.serverDetails?.liveData || this.serverDetails?.cachedStatus || {};
+                },
+
+                async init() {
+                    // Check for token in URL or localStorage
+                    const params = new URLSearchParams(window.location.search);
+                    const urlToken = params.get('token');
+                    
+                    if (urlToken) {
+                        this.token = urlToken;
+                        localStorage.setItem('portal_token', urlToken);
+                        window.history.replaceState({}, '', '/');
+                    } else {
+                        this.token = localStorage.getItem('portal_token');
+                    }
+                    
+                    // Check for error
+                    const error = params.get('error');
+                    if (error) {
+                        alert('Login failed: ' + error);
+                        window.history.replaceState({}, '', '/');
+                    }
+                    
+                    if (this.token) {
+                        await this.loadUser();
+                    }
+                    
+                    this.loading = false;
+                },
+
+                async loadUser() {
+                    try {
+                        const res = await this.apiCall('/auth/me');
+                        if (res.ok) {
+                            this.user = await res.json();
+                            await this.loadServers();
+                            this.connectSignalR();
+                        } else {
+                            this.token = null;
+                            localStorage.removeItem('portal_token');
+                        }
+                    } catch (err) {
+                        console.error('Failed to load user:', err);
+                    }
+                },
+
+                async loadServers() {
+                    try {
+                        const res = await this.apiCall('/api/my-servers');
+                        if (res.ok) {
+                            this.servers = await res.json();
+                            this.servers.forEach(s => {
+                                if (s.status) {
+                                    this.serverStatuses[s.serverId] = s.status;
+                                }
+                            });
+                            this.recalculateDashboard();
+                        }
+                    } catch (err) {
+                        console.error('Failed to load servers:', err);
+                    }
+                },
+
+                async connectSignalR() {
+                    this.hubConnection = new signalR.HubConnectionBuilder()
+                        .withUrl('/hub/portal')
+                        .withAutomaticReconnect()
+                        .build();
+
+                    this.hubConnection.on('ServerStatusUpdated', (serverId, status) => {
+                        this.serverStatuses[serverId] = status;
+                        const server = this.servers.find(s => s.serverId === serverId);
+                        if (server) {
+                            server.isOnline = true;
+                            server.lastSeenAt = new Date().toISOString();
+                        }
+                        this.recalculateDashboard();
+                    });
+
+                    this.hubConnection.onreconnecting(() => this.hubConnected = false);
+                    this.hubConnection.onreconnected(() => this.hubConnected = true);
+                    this.hubConnection.onclose(() => this.hubConnected = false);
+
+                    try {
+                        await this.hubConnection.start();
+                        this.hubConnected = true;
+                    } catch (err) {
+                        console.error('SignalR failed:', err);
+                        setTimeout(() => this.connectSignalR(), 5000);
+                    }
+                },
+
+                recalculateDashboard() {
+                    let totalServers = this.servers.length;
+                    let onlineServers = 0;
+                    let totalGameServers = 0;
+                    let activeGameServers = 0;
+                    let totalPlayers = 0;
+                    let activeMatches = 0;
+
+                    this.servers.forEach(server => {
+                        if (server.isOnline) onlineServers++;
+                        
+                        const status = this.serverStatuses[server.serverId];
+                        if (status) {
+                            totalGameServers += status.totalServers || 0;
+                            activeGameServers += status.onlineServers || 0;
+                            totalPlayers += status.totalPlayers || 0;
+                            
+                            if (status.instances) {
+                                activeMatches += status.instances.filter(i => 
+                                    i.status === 'Occupied' || i.status === 'OCCUPIED'
+                                ).length;
+                            }
+                        }
+                    });
+
+                    this.dashboard = {
+                        totalServers,
+                        onlineServers,
+                        totalGameServers,
+                        activeGameServers,
+                        totalPlayers,
+                        activeMatches
+                    };
+                },
+
+                getServerStatus(serverId) {
+                    return this.serverStatuses[serverId] || null;
+                },
+
+                // Form actions
+                async addServer() {
+                    this.formError = '';
+                    this.formLoading = true;
+                    
+                    try {
+                        const res = await this.apiCall('/api/my-servers', {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                server_name: this.serverForm.serverName,
+                                ip_address: this.serverForm.ipAddress,
+                                api_port: this.serverForm.apiPort || 5050,
+                                region: this.serverForm.region
+                            })
+                        });
+                        
+                        const data = await res.json();
+                        
+                        if (res.ok) {
+                            await this.loadServers();
+                            this.closeModals();
+                            
+                            // Show API key
+                            this.selectedServer = data;
+                            this.showKeyModal = true;
+                        } else {
+                            this.formError = data.error || 'Failed to add server';
+                        }
+                    } catch (err) {
+                        this.formError = 'Network error';
+                    } finally {
+                        this.formLoading = false;
+                    }
+                },
+
+                editServer(server) {
+                    this.selectedServer = server;
+                    this.serverForm = {
+                        serverName: server.serverName,
+                        ipAddress: server.ipAddress,
+                        apiPort: server.apiPort,
+                        region: server.region
+                    };
+                    this.showEditModal = true;
+                },
+
+                async updateServer() {
+                    this.formError = '';
+                    this.formLoading = true;
+                    
+                    try {
+                        const res = await this.apiCall(`/api/my-servers/${this.selectedServer.serverId}`, {
+                            method: 'PUT',
+                            body: JSON.stringify({
+                                server_name: this.serverForm.serverName,
+                                ip_address: this.serverForm.ipAddress,
+                                api_port: this.serverForm.apiPort,
+                                region: this.serverForm.region
+                            })
+                        });
+                        
+                        const data = await res.json();
+                        
+                        if (res.ok) {
+                            await this.loadServers();
+                            this.closeModals();
+                        } else {
+                            this.formError = data.error || 'Failed to update server';
+                        }
+                    } catch (err) {
+                        this.formError = 'Network error';
+                    } finally {
+                        this.formLoading = false;
+                    }
+                },
+
+                confirmDelete(server) {
+                    this.selectedServer = server;
+                    this.showDeleteModal = true;
+                },
+
+                async deleteServer() {
+                    this.formLoading = true;
+                    
+                    try {
+                        const res = await this.apiCall(`/api/my-servers/${this.selectedServer.serverId}`, {
+                            method: 'DELETE'
+                        });
+                        
+                        if (res.ok) {
+                            await this.loadServers();
+                            this.showDeleteModal = false;
+                        } else {
+                            alert('Failed to delete server');
+                        }
+                    } catch (err) {
+                        alert('Network error');
+                    } finally {
+                        this.formLoading = false;
+                    }
+                },
+
+                showApiKey(server) {
+                    this.selectedServer = server;
+                    this.showKeyModal = true;
+                },
+
+                copyApiKey() {
+                    navigator.clipboard.writeText(this.selectedServer.apiKey);
+                    alert('API Key copied to clipboard!');
+                },
+
+                // Server Details & Control
+                async openServerDetails(server) {
+                    this.selectedServer = server;
+                    this.serverDetails = null;
+                    this.activeTab = 'overview';
+                    this.showDetailsModal = true;
+                    await this.refreshServerDetails();
+                    await this.loadServerConfig();
+                },
+
+                async refreshServerDetails() {
+                    if (!this.selectedServer) return;
+                    
+                    this.detailsLoading = true;
+                    try {
+                        const res = await this.apiCall(`/api/servers/${this.selectedServer.serverId}/details`);
+                        if (res.ok) {
+                            const data = await res.json();
+                            this.serverDetails = data;
+                            
+                            // Update local serverStatuses with live data if available
+                            if (data.liveData) {
+                                this.serverStatuses[this.selectedServer.serverId] = data.liveData;
+                            } else if (data.cachedStatus) {
+                                this.serverStatuses[this.selectedServer.serverId] = data.cachedStatus;
+                            }
+                            
+                            this.recalculateDashboard();
+                        }
+                    } catch (err) {
+                        console.error('Failed to load server details:', err);
+                    } finally {
+                        this.detailsLoading = false;
+                    }
+                },
+
+                async startInstance(instanceId) {
+                    this.controlLoading = true;
+                    try {
+                        const res = await this.apiCall(
+                            `/api/servers/${this.selectedServer.serverId}/instances/${instanceId}/start`,
+                            { method: 'POST' }
+                        );
+                        const data = await res.json();
+                        if (res.ok) {
+                            await this.refreshServerDetails();
+                        } else {
+                            alert(data.error || 'Failed to start instance');
+                        }
+                    } catch (err) {
+                        alert('Network error');
+                    } finally {
+                        this.controlLoading = false;
+                    }
+                },
+
+                async stopInstance(instanceId) {
+                    this.controlLoading = true;
+                    try {
+                        const res = await this.apiCall(
+                            `/api/servers/${this.selectedServer.serverId}/instances/${instanceId}/stop`,
+                            { method: 'POST' }
+                        );
+                        const data = await res.json();
+                        if (res.ok) {
+                            await this.refreshServerDetails();
+                        } else {
+                            alert(data.error || 'Failed to stop instance');
+                        }
+                    } catch (err) {
+                        alert('Network error');
+                    } finally {
+                        this.controlLoading = false;
+                    }
+                },
+
+                async restartInstance(instanceId) {
+                    this.controlLoading = true;
+                    try {
+                        const res = await this.apiCall(
+                            `/api/servers/${this.selectedServer.serverId}/instances/${instanceId}/restart`,
+                            { method: 'POST' }
+                        );
+                        const data = await res.json();
+                        if (res.ok) {
+                            await this.refreshServerDetails();
+                        } else {
+                            alert(data.error || 'Failed to restart instance');
+                        }
+                    } catch (err) {
+                        alert('Network error');
+                    } finally {
+                        this.controlLoading = false;
+                    }
+                },
+
+                async startAllInstances() {
+                    if (!confirm('Start all game server instances?')) return;
+                    
+                    this.controlLoading = true;
+                    try {
+                        const res = await this.apiCall(
+                            `/api/servers/${this.selectedServer.serverId}/start-all`,
+                            { method: 'POST' }
+                        );
+                        const data = await res.json();
+                        if (res.ok) {
+                            await this.refreshServerDetails();
+                        } else {
+                            alert(data.error || 'Failed to start instances');
+                        }
+                    } catch (err) {
+                        alert('Network error');
+                    } finally {
+                        this.controlLoading = false;
+                    }
+                },
+
+                async stopAllInstances() {
+                    if (!confirm('Stop all game server instances?')) return;
+                    
+                    this.controlLoading = true;
+                    try {
+                        const res = await this.apiCall(
+                            `/api/servers/${this.selectedServer.serverId}/stop-all`,
+                            { method: 'POST' }
+                        );
+                        const data = await res.json();
+                        if (res.ok) {
+                            await this.refreshServerDetails();
+                        } else {
+                            alert(data.error || 'Failed to stop instances');
+                        }
+                    } catch (err) {
+                        alert('Network error');
+                    } finally {
+                        this.controlLoading = false;
+                    }
+                },
+
+                async restartAllInstances() {
+                    if (!confirm('Restart all game server instances?')) return;
+                    
+                    this.controlLoading = true;
+                    try {
+                        const res = await this.apiCall(
+                            `/api/servers/${this.selectedServer.serverId}/restart-all`,
+                            { method: 'POST' }
+                        );
+                        const data = await res.json();
+                        if (res.ok) {
+                            await this.refreshServerDetails();
+                        } else {
+                            alert(data.error || 'Failed to restart instances');
+                        }
+                    } catch (err) {
+                        alert('Network error');
+                    } finally {
+                        this.controlLoading = false;
+                    }
+                },
+
+                async addNewInstance() {
+                    this.controlLoading = true;
+                    try {
+                        const res = await this.apiCall(
+                            `/api/servers/${this.selectedServer.serverId}/instances/add`,
+                            { method: 'POST' }
+                        );
+                        const data = await res.json();
+                        if (res.ok) {
+                            // Wait a moment for HoNfigurator to update its state
+                            await new Promise(r => setTimeout(r, 1000));
+                            await this.refreshServerDetails();
+                            await this.loadServers(); // Also refresh the main list
+                        } else {
+                            alert(data.error || 'Failed to add instance');
+                        }
+                    } catch (err) {
+                        alert('Network error');
+                    } finally {
+                        this.controlLoading = false;
+                    }
+                },
+
+                async deleteInstance(instanceId) {
+                    if (!confirm(`Delete instance #${instanceId}?`)) return;
+                    
+                    this.controlLoading = true;
+                    try {
+                        const res = await this.apiCall(
+                            `/api/servers/${this.selectedServer.serverId}/instances/${instanceId}/delete`,
+                            { method: 'POST' }
+                        );
+                        const data = await res.json();
+                        if (res.ok) {
+                            // Wait a moment for HoNfigurator to update its state
+                            await new Promise(r => setTimeout(r, 1000));
+                            await this.refreshServerDetails();
+                            await this.loadServers(); // Also refresh the main list
+                        } else {
+                            alert(data.error || 'Failed to delete instance');
+                        }
+                    } catch (err) {
+                        alert('Network error');
+                    } finally {
+                        this.controlLoading = false;
+                    }
+                },
+
+                async deleteAllInstances() {
+                    const instances = this.statusData?.instances || [];
+                    if (instances.length === 0) {
+                        alert('No instances to delete');
+                        return;
+                    }
+                    
+                    if (!confirm(`Delete ALL ${instances.length} instances? This action cannot be undone!`)) return;
+                    
+                    this.controlLoading = true;
+                    try {
+                        // Delete instances one by one from highest ID to lowest
+                        const sortedInstances = [...instances].sort((a, b) => b.instance_id - a.instance_id);
+                        for (const instance of sortedInstances) {
+                            const res = await this.apiCall(
+                                `/api/servers/${this.selectedServer.serverId}/instances/${instance.instance_id}/delete`,
+                                { method: 'POST' }
+                            );
+                            if (!res.ok) {
+                                const data = await res.json();
+                                throw new Error(data.error || `Failed to delete instance ${instance.instance_id}`);
+                            }
+                            await new Promise(r => setTimeout(r, 500)); // Small delay between deletions
+                        }
+                        
+                        // Wait a moment for HoNfigurator to update its state
+                        await new Promise(r => setTimeout(r, 1000));
+                        await this.refreshServerDetails();
+                        await this.loadServers();
+                    } catch (err) {
+                        alert(err.message || 'Network error');
+                    } finally {
+                        this.controlLoading = false;
+                    }
+                },
+
+                async applyScale() {
+                    this.controlLoading = true;
+                    try {
+                        const res = await this.apiCall(
+                            `/api/servers/${this.selectedServer.serverId}/scale`,
+                            { 
+                                method: 'POST',
+                                body: JSON.stringify({ targetCount: this.targetServers })
+                            }
+                        );
+                        const data = await res.json();
+                        if (res.ok) {
+                            await this.refreshServerDetails();
+                        } else {
+                            alert(data.error || 'Failed to scale');
+                        }
+                    } catch (err) {
+                        alert('Network error');
+                    } finally {
+                        this.controlLoading = false;
+                    }
+                },
+
+                async updateConfig() {
+                    this.controlLoading = true;
+                    try {
+                        const res = await this.apiCall(
+                            `/api/servers/${this.selectedServer.serverId}/config`,
+                            { 
+                                method: 'POST',
+                                body: JSON.stringify({ 
+                                    proxyEnabled: this.proxyEnabled, 
+                                    basePort: this.basePort, 
+                                    maxPlayers: this.maxPlayers,
+                                    totalServers: this.targetServers
+                                })
+                            }
+                        );
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert('Configuration saved successfully!');
+                            await this.refreshServerDetails();
+                        } else {
+                            alert(data.error || 'Failed to save configuration');
+                        }
+                    } catch (err) {
+                        alert('Network error');
+                    } finally {
+                        this.controlLoading = false;
+                    }
+                },
+
+                async loadServerConfig() {
+                    try {
+                        const res = await this.apiCall(`/api/servers/${this.selectedServer.serverId}/config`);
+                        if (res.ok) {
+                            const config = await res.json();
+                            console.log('Loaded config:', config);
+                            
+                            // Update full serverConfig object
+                            this.serverConfig.svr_name = config.svr_name?.value ?? '';
+                            this.serverConfig.svr_location = config.svr_location?.value ?? 'NEWERTH';
+                            this.serverConfig.svr_priority = config.svr_priority?.value ?? 'HIGH';
+                            this.serverConfig.svr_total = config.svr_total?.value ?? 1;
+                            this.serverConfig.svr_enableBotMatch = config.svr_enableBotMatch?.value ?? true;
+                            this.serverConfig.svr_start_on_launch = config.svr_start_on_launch?.value ?? false;
+                            this.serverConfig.svr_noConsole = config.svr_noConsole?.value ?? true;
+                            this.serverConfig.svr_max_start_at_once = config.svr_max_start_at_once?.value ?? 5;
+                            this.serverConfig.svr_startup_timeout = config.svr_startup_timeout?.value ?? 180;
+                            this.serverConfig.svr_restart_between_games = config.svr_restart_between_games?.value ?? false;
+                            this.serverConfig.svr_masterServer = config.svr_masterServer?.value ?? '';
+                            this.serverConfig.svr_chatServer = config.svr_chatServer?.value ?? '';
+                            this.serverConfig.svr_patchServer = config.svr_patchServer?.value ?? 'api.kongor.net/patches';
+                            this.serverConfig.svr_starting_gamePort = config.svr_starting_gamePort?.value ?? 10001;
+                            this.serverConfig.svr_starting_voicePort = config.svr_starting_voicePort?.value ?? 10061;
+                            this.serverConfig.svr_api_port = config.svr_api_port?.value ?? 5050;
+                            this.serverConfig.svr_maxClients = config.svr_maxClients?.value ?? 10;
+                            this.serverConfig.svr_managerPort = config.svr_managerPort?.value ?? 11235;
+                            this.serverConfig.svr_beta_mode = config.svr_beta_mode?.value ?? false;
+                            this.serverConfig.man_enableProxy = config.man_enableProxy?.value ?? true;
+                            this.serverConfig.man_use_cowmaster = config.man_use_cowmaster?.value ?? false;
+                            this.serverConfig.hon_install_directory = config.hon_install_directory?.value ?? '';
+                            this.serverConfig.hon_home_directory = config.hon_home_directory?.value ?? '';
+                            
+                            // Also update simple vars for backward compat
+                            this.proxyEnabled = this.serverConfig.man_enableProxy;
+                            this.basePort = this.serverConfig.svr_starting_gamePort;
+                            this.maxPlayers = this.serverConfig.svr_maxClients;
+                            this.targetServers = this.serverConfig.svr_total;
+                        }
+                    } catch (err) {
+                        console.error('Failed to load config:', err);
+                    }
+                },
+
+                async saveFullConfig() {
+                    this.controlLoading = true;
+                    try {
+                        // Build flat config object to send
+                        const configPayload = {
+                            svr_name: this.serverConfig.svr_name,
+                            svr_location: this.serverConfig.svr_location,
+                            svr_priority: this.serverConfig.svr_priority,
+                            svr_total: parseInt(this.serverConfig.svr_total),
+                            svr_enableBotMatch: this.serverConfig.svr_enableBotMatch,
+                            svr_start_on_launch: this.serverConfig.svr_start_on_launch,
+                            svr_noConsole: this.serverConfig.svr_noConsole,
+                            svr_max_start_at_once: parseInt(this.serverConfig.svr_max_start_at_once),
+                            svr_startup_timeout: parseInt(this.serverConfig.svr_startup_timeout),
+                            svr_restart_between_games: this.serverConfig.svr_restart_between_games,
+                            svr_masterServer: this.serverConfig.svr_masterServer,
+                            svr_chatServer: this.serverConfig.svr_chatServer,
+                            svr_patchServer: this.serverConfig.svr_patchServer,
+                            svr_starting_gamePort: parseInt(this.serverConfig.svr_starting_gamePort),
+                            svr_api_port: parseInt(this.serverConfig.svr_api_port),
+                            svr_maxClients: parseInt(this.serverConfig.svr_maxClients),
+                            man_enableProxy: this.serverConfig.man_enableProxy,
+                            man_use_cowmaster: this.serverConfig.man_use_cowmaster,
+                            hon_install_directory: this.serverConfig.hon_install_directory,
+                            hon_home_directory: this.serverConfig.hon_home_directory
+                        };
+                        
+                        const res = await this.apiCall(
+                            `/api/servers/${this.selectedServer.serverId}/config/full`,
+                            { 
+                                method: 'POST',
+                                body: JSON.stringify(configPayload)
+                            }
+                        );
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert('Configuration saved successfully!');
+                            // Update simple vars
+                            this.proxyEnabled = this.serverConfig.man_enableProxy;
+                            this.basePort = this.serverConfig.svr_starting_gamePort;
+                            this.maxPlayers = this.serverConfig.svr_maxClients;
+                            this.targetServers = this.serverConfig.svr_total;
+                            await this.refreshServerDetails();
+                        } else {
+                            alert(data.error || 'Failed to save configuration');
+                        }
+                    } catch (err) {
+                        alert('Network error');
+                    } finally {
+                        this.controlLoading = false;
+                    }
+                },
+
+                async sendBroadcast() {
+                    if (!this.broadcastMessage) return;
+                    
+                    this.controlLoading = true;
+                    try {
+                        const res = await this.apiCall(
+                            `/api/servers/${this.selectedServer.serverId}/broadcast`,
+                            { 
+                                method: 'POST',
+                                body: JSON.stringify({ message: this.broadcastMessage })
+                            }
+                        );
+                        const data = await res.json();
+                        if (res.ok) {
+                            alert('Message sent!');
+                            this.broadcastMessage = '';
+                            this.showBroadcastModal = false;
+                        } else {
+                            alert(data.error || 'Failed to send message');
+                        }
+                    } catch (err) {
+                        alert('Network error');
+                    } finally {
+                        this.controlLoading = false;
+                    }
+                },
+
+                get filteredInstances() {
+                    // Use statusData computed property (liveData first, then cachedStatus)
+                    let instances = this.statusData?.instances || [];
+                    
+                    console.log('filteredInstances - statusData:', this.statusData);
+                    console.log('filteredInstances - instances:', instances);
+                    
+                    if (this.instanceFilter !== 'all') {
+                        instances = instances.filter(i => {
+                            const status = (i.status || '').toLowerCase();
+                            return status === this.instanceFilter.toLowerCase();
+                        });
+                    }
+                    
+                    if (this.instanceSearch) {
+                        const search = this.instanceSearch.toLowerCase();
+                        instances = instances.filter(i => 
+                            (i.name || '').toLowerCase().includes(search) ||
+                            (i.id || '').toString().includes(search) ||
+                            (i.port || '').toString().includes(search)
+                        );
+                    }
+                    
+                    return instances;
+                },
+
+                get sortedInstances() {
+                    let instances = [...this.filteredInstances];
+                    
+                    instances.sort((a, b) => {
+                        let valA, valB;
+                        
+                        switch (this.instanceSort) {
+                            case 'id':
+                                valA = a.id || 0;
+                                valB = b.id || 0;
+                                break;
+                            case 'status':
+                                valA = a.status || '';
+                                valB = b.status || '';
+                                break;
+                            case 'port':
+                                valA = a.port || 0;
+                                valB = b.port || 0;
+                                break;
+                            case 'players':
+                                valA = a.num_clients ?? a.numClients ?? 0;
+                                valB = b.num_clients ?? b.numClients ?? 0;
+                                break;
+                            case 'uptime':
+                                valA = a.start_time ? new Date(a.start_time).getTime() : 0;
+                                valB = b.start_time ? new Date(b.start_time).getTime() : 0;
+                                break;
+                            default:
+                                valA = a.id || 0;
+                                valB = b.id || 0;
+                        }
+                        
+                        if (typeof valA === 'string') {
+                            return this.instanceSortAsc 
+                                ? valA.localeCompare(valB) 
+                                : valB.localeCompare(valA);
+                        }
+                        
+                        return this.instanceSortAsc ? valA - valB : valB - valA;
+                    });
+                    
+                    return instances;
+                },
+
+                toggleSort(field) {
+                    if (this.instanceSort === field) {
+                        this.instanceSortAsc = !this.instanceSortAsc;
+                    } else {
+                        this.instanceSort = field;
+                        this.instanceSortAsc = true;
+                    }
+                },
+
+                // Helper to check status case-insensitively
+                isStatus(instance, status) {
+                    const s = (instance?.status || '').toLowerCase();
+                    return s === status.toLowerCase();
+                },
+
+                // Helper to check if status is one of multiple values
+                isStatusAny(instance, ...statuses) {
+                    const s = (instance?.status || '').toLowerCase();
+                    return statuses.some(status => s === status.toLowerCase());
+                },
+
+                // Get CSS class for status indicator dot
+                getStatusDotClass(instance) {
+                    const s = (instance?.status || '').toLowerCase();
+                    if (s === 'ready') return 'bg-green-400';
+                    if (s === 'occupied') return 'bg-yellow-400';
+                    if (s === 'offline' || s === 'stopped') return 'bg-gray-500';
+                    if (s === 'starting') return 'bg-blue-400 animate-pulse';
+                    return 'bg-gray-500';
+                },
+
+                // Get CSS class for status badge
+                getStatusBadgeClass(instance) {
+                    const s = (instance?.status || '').toLowerCase();
+                    if (s === 'ready') return 'bg-green-500/20 text-green-400';
+                    if (s === 'occupied') return 'bg-yellow-500/20 text-yellow-400';
+                    if (s === 'offline' || s === 'stopped') return 'bg-gray-500/20 text-gray-400';
+                    if (s === 'starting') return 'bg-blue-500/20 text-blue-400';
+                    return 'bg-gray-500/20 text-gray-400';
+                },
+
+                // Get CSS class for status glow dot (grid view)
+                getStatusGlowClass(instance) {
+                    const s = (instance?.status || '').toLowerCase();
+                    if (s === 'ready') return 'bg-green-400 shadow-[0_0_10px_rgba(74,222,128,0.5)]';
+                    if (s === 'occupied') return 'bg-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.5)]';
+                    if (s === 'offline' || s === 'stopped') return 'bg-gray-500';
+                    if (s === 'starting') return 'bg-blue-400 animate-pulse';
+                    return 'bg-gray-500';
+                },
+
+                // Check if start button should be disabled
+                isStartDisabled(instance) {
+                    return this.controlLoading || this.isStatusAny(instance, 'ready', 'occupied');
+                },
+
+                // Check if stop button should be disabled
+                isStopDisabled(instance) {
+                    return this.controlLoading || this.isStatusAny(instance, 'offline', 'stopped');
+                },
+
+                getPhaseClass(phase) {
+                    const p = (phase || 'idle').toLowerCase();
+                    
+                    if (p === 'idle' || p === '-' || !p) {
+                        return 'bg-gray-500/20 text-gray-400';
+                    }
+                    if (p === 'lobby' || p === 'waiting') {
+                        return 'bg-yellow-500/20 text-yellow-400';
+                    }
+                    if (p === 'loading' || p === 'picking' || p === 'banning') {
+                        return 'bg-blue-500/20 text-blue-400';
+                    }
+                    if (p === 'playing' || p === 'in game' || p === 'ingame' || p === 'active') {
+                        return 'bg-green-500/20 text-green-400';
+                    }
+                    if (p === 'ending' || p === 'ended' || p === 'finished') {
+                        return 'bg-orange-500/20 text-orange-400';
+                    }
+                    if (p === 'crashed' || p === 'error') {
+                        return 'bg-red-500/20 text-red-400';
+                    }
+                    
+                    return 'bg-purple-500/20 text-purple-400';
+                },
+
+                formatInstanceUptime(startTime) {
+                    if (!startTime) return '-';
+                    
+                    const start = new Date(startTime);
+                    const now = new Date();
+                    const diffMs = now - start;
+                    
+                    if (diffMs < 0) return '-';
+                    
+                    const diffSeconds = Math.floor(diffMs / 1000);
+                    const minutes = Math.floor(diffSeconds / 60);
+                    const seconds = diffSeconds % 60;
+                    const hours = Math.floor(minutes / 60);
+                    const mins = minutes % 60;
+                    
+                    if (hours > 0) {
+                        return `${hours}h ${mins}m`;
+                    }
+                    return `${mins}m ${seconds}s`;
+                },
+
+                formatUptime(uptime) {
+                    if (!uptime) return '-';
+                    // If it's already a string like "0d 0h 21m", return as is
+                    if (typeof uptime === 'string') {
+                        return uptime;
+                    }
+                    // If it's seconds, format it
+                    const hours = Math.floor(uptime / 3600);
+                    const minutes = Math.floor((uptime % 3600) / 60);
+                    if (hours > 24) {
+                        const days = Math.floor(hours / 24);
+                        return `${days}d ${hours % 24}h`;
+                    }
+                    return `${hours}h ${minutes}m`;
+                },
+
+                closeModals() {
+                    this.showAddModal = false;
+                    this.showEditModal = false;
+                    this.formError = '';
+                    this.serverForm = {
+                        serverName: '',
+                        ipAddress: '',
+                        apiPort: 5050,
+                        region: 'Unknown'
+                    };
+                },
+
+                // ==================== ACCESS MANAGEMENT ====================
+                async loadServerAccess() {
+                    if (!this.selectedServer) return;
+                    
+                    this.accessLoading = true;
+                    try {
+                        const res = await this.apiCall(`/api/my-servers/${this.selectedServer.serverId}/access`);
+                        if (res.ok) {
+                            this.serverAccessList = await res.json();
+                        }
+                    } catch (err) {
+                        console.error('Failed to load access list:', err);
+                    } finally {
+                        this.accessLoading = false;
+                    }
+                },
+
+                async addAccess() {
+                    if (!this.addAccessForm.discordId) {
+                        this.accessFormError = 'Discord ID is required';
+                        return;
+                    }
+
+                    this.accessFormLoading = true;
+                    this.accessFormError = '';
+
+                    try {
+                        const res = await this.apiCall(`/api/my-servers/${this.selectedServer.serverId}/access`, {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                discord_id: this.addAccessForm.discordId,
+                                role: parseInt(this.addAccessForm.role)
+                            })
+                        });
+
+                        if (res.ok) {
+                            const newAccess = await res.json();
+                            this.serverAccessList.push(newAccess);
+                            this.showAddAccessModal = false;
+                            this.addAccessForm = { discordId: '', role: 0 };
+                        } else {
+                            const err = await res.json();
+                            this.accessFormError = err.error || 'Failed to add access';
+                        }
+                    } catch (err) {
+                        this.accessFormError = 'Network error';
+                    } finally {
+                        this.accessFormLoading = false;
+                    }
+                },
+
+                async updateAccessRole(access) {
+                    try {
+                        const res = await this.apiCall(`/api/my-servers/${this.selectedServer.serverId}/access/${access.id}`, {
+                            method: 'PUT',
+                            body: JSON.stringify({
+                                role: parseInt(access.role)
+                            })
+                        });
+
+                        if (!res.ok) {
+                            // Revert on error
+                            await this.loadServerAccess();
+                            alert('Failed to update role');
+                        }
+                    } catch (err) {
+                        await this.loadServerAccess();
+                        alert('Failed to update role');
+                    }
+                },
+
+                async removeAccess(access) {
+                    if (!confirm(`Remove access for ${access.username || access.discordId}?`)) {
+                        return;
+                    }
+
+                    try {
+                        const res = await this.apiCall(`/api/my-servers/${this.selectedServer.serverId}/access/${access.id}`, {
+                            method: 'DELETE'
+                        });
+
+                        if (res.ok) {
+                            this.serverAccessList = this.serverAccessList.filter(a => a.id !== access.id);
+                        } else {
+                            alert('Failed to remove access');
+                        }
+                    } catch (err) {
+                        alert('Failed to remove access');
+                    }
+                },
+
+                // ==================== SUPERADMIN PANEL ====================
+                async loadAdminUsers() {
+                    this.adminLoading = true;
+                    try {
+                        const res = await this.apiCall('/api/admin/users');
+                        if (res.ok) {
+                            this.adminUsers = await res.json();
+                        }
+                    } catch (err) {
+                        console.error('Failed to load admin users:', err);
+                    } finally {
+                        this.adminLoading = false;
+                    }
+                },
+
+                async toggleSuperAdmin(targetUser) {
+                    const newStatus = !targetUser.isSuperAdmin;
+                    const action = newStatus ? 'grant SuperAdmin to' : 'remove SuperAdmin from';
+                    
+                    if (!confirm(`Are you sure you want to ${action} ${targetUser.username}?`)) {
+                        return;
+                    }
+
+                    try {
+                        const res = await this.apiCall(`/api/admin/users/${targetUser.id}/superadmin`, {
+                            method: 'PUT',
+                            body: JSON.stringify({ is_super_admin: newStatus })
+                        });
+
+                        if (res.ok) {
+                            targetUser.isSuperAdmin = newStatus;
+                        } else {
+                            const err = await res.json();
+                            alert(err.error || 'Failed to update SuperAdmin status');
+                        }
+                    } catch (err) {
+                        alert('Failed to update SuperAdmin status');
+                    }
+                },
+
+                async logout() {
+                    await this.apiCall('/auth/logout', { method: 'POST' });
+                    this.user = null;
+                    this.token = null;
+                    this.servers = [];
+                    localStorage.removeItem('portal_token');
+                    if (this.hubConnection) {
+                        this.hubConnection.stop();
+                    }
+                },
+
+                apiCall(url, options = {}) {
+                    return fetch(url, {
+                        ...options,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.token}`,
+                            ...(options.headers || {})
+                        }
+                    });
+                }
+            };
+        }
+    </script>
+</body>
+</html>

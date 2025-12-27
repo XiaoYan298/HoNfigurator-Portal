@@ -1857,15 +1857,22 @@
                     this.controlLoading = true;
                     try {
                         // Delete instances one by one from highest ID to lowest
-                        const sortedInstances = [...instances].sort((a, b) => b.instance_id - a.instance_id);
+                        const sortedInstances = [...instances].sort((a, b) => b.id - a.id);
                         for (const instance of sortedInstances) {
                             const res = await this.apiCall(
-                                `/api/servers/${this.selectedServer.serverId}/instances/${instance.instance_id}/delete`,
+                                `/api/servers/${this.selectedServer.serverId}/instances/${instance.id}/delete`,
                                 { method: 'POST' }
                             );
                             if (!res.ok) {
-                                const data = await res.json();
-                                throw new Error(data.error || `Failed to delete instance ${instance.instance_id}`);
+                                const text = await res.text();
+                                let errorMsg;
+                                try {
+                                    const data = JSON.parse(text);
+                                    errorMsg = data.error || `Failed to delete instance ${instance.id}`;
+                                } catch {
+                                    errorMsg = text || `Failed to delete instance ${instance.id}`;
+                                }
+                                throw new Error(errorMsg);
                             }
                             await new Promise(r => setTimeout(r, 500)); // Small delay between deletions
                         }

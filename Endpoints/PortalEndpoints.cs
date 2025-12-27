@@ -1166,7 +1166,7 @@ public static class PortalEndpoints
         {
             var response = await _proxyClient.SendAsync(new HttpRequestMessage(HttpMethod.Delete, 
                 $"http://{server.IpAddress}:{server.ApiPort}/api/servers/delete")
-                { Content = JsonContent.Create(new { serverIds = new[] { instanceId } }) });
+                { Content = JsonContent.Create(new { count = 1 }) });
 
             if (response.IsSuccessStatusCode)
             {

@@ -878,6 +878,83 @@
                         </div>
                     </div>
                     
+                    <!-- Discord Bot Settings -->
+                    <div class="bg-zinc-800/50 rounded-lg p-4 mb-4 border border-zinc-800">
+                        <h4 class="text-sm font-medium mb-3 text-zinc-400">
+                            <i class="fab fa-discord mr-2 text-indigo-400"></i>Discord Bot
+                        </h4>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <!-- Bot Token -->
+                            <div class="md:col-span-2">
+                                <label class="block text-xs text-zinc-500 mb-1">Bot Token</label>
+                                <input type="password" x-model="serverConfig.discord_bot_token" 
+                                       placeholder="Enter your Discord bot token"
+                                       class="w-full h-8 bg-zinc-900 border border-zinc-700 rounded px-2 text-sm focus:outline-none">
+                            </div>
+                            
+                            <!-- Owner ID -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Owner Discord ID</label>
+                                <input type="text" x-model="serverConfig.discord_owner_id" 
+                                       placeholder="Your Discord User ID"
+                                       class="w-full h-8 bg-zinc-900 border border-zinc-700 rounded px-2 text-sm focus:outline-none">
+                            </div>
+                            
+                            <!-- Notification Channel ID -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Notification Channel ID</label>
+                                <input type="text" x-model="serverConfig.discord_notification_channel_id" 
+                                       placeholder="Discord Channel ID for notifications"
+                                       class="w-full h-8 bg-zinc-900 border border-zinc-700 rounded px-2 text-sm focus:outline-none">
+                            </div>
+                            
+                            <!-- Enable Notifications -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Notifications</label>
+                                <button :class="serverConfig.discord_enable_notifications ? 'bg-green-600' : 'bg-zinc-800'" 
+                                     class="w-full h-8 rounded px-2 text-sm flex items-center justify-between border border-zinc-700 transition-colors"
+                                     @click="serverConfig.discord_enable_notifications = !serverConfig.discord_enable_notifications">
+                                    <span x-text="serverConfig.discord_enable_notifications ? 'On' : 'Off'"></span>
+                                    <span class="w-2 h-2 rounded-full" :class="serverConfig.discord_enable_notifications ? 'bg-white' : 'bg-zinc-600'"></span>
+                                </button>
+                            </div>
+                            
+                            <!-- Notify Match Start -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Match Start</label>
+                                <button :class="serverConfig.discord_notify_match_start ? 'bg-green-600' : 'bg-zinc-800'" 
+                                     class="w-full h-8 rounded px-2 text-sm flex items-center justify-between border border-zinc-700 transition-colors"
+                                     @click="serverConfig.discord_notify_match_start = !serverConfig.discord_notify_match_start">
+                                    <span x-text="serverConfig.discord_notify_match_start ? 'On' : 'Off'"></span>
+                                    <span class="w-2 h-2 rounded-full" :class="serverConfig.discord_notify_match_start ? 'bg-white' : 'bg-zinc-600'"></span>
+                                </button>
+                            </div>
+                            
+                            <!-- Notify Match End -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Match End</label>
+                                <button :class="serverConfig.discord_notify_match_end ? 'bg-green-600' : 'bg-zinc-800'" 
+                                     class="w-full h-8 rounded px-2 text-sm flex items-center justify-between border border-zinc-700 transition-colors"
+                                     @click="serverConfig.discord_notify_match_end = !serverConfig.discord_notify_match_end">
+                                    <span x-text="serverConfig.discord_notify_match_end ? 'On' : 'Off'"></span>
+                                    <span class="w-2 h-2 rounded-full" :class="serverConfig.discord_notify_match_end ? 'bg-white' : 'bg-zinc-600'"></span>
+                                </button>
+                            </div>
+                            
+                            <!-- Notify Player Join/Leave -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Player Join/Leave</label>
+                                <button :class="serverConfig.discord_notify_player_join_leave ? 'bg-green-600' : 'bg-zinc-800'" 
+                                     class="w-full h-8 rounded px-2 text-sm flex items-center justify-between border border-zinc-700 transition-colors"
+                                     @click="serverConfig.discord_notify_player_join_leave = !serverConfig.discord_notify_player_join_leave">
+                                    <span x-text="serverConfig.discord_notify_player_join_leave ? 'On' : 'Off'"></span>
+                                    <span class="w-2 h-2 rounded-full" :class="serverConfig.discord_notify_player_join_leave ? 'bg-white' : 'bg-zinc-600'"></span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <!-- Save Button -->
                     <div class="flex gap-2">
                         <button @click="loadServerConfig()" :disabled="controlLoading"
@@ -1306,7 +1383,15 @@
                     man_enableProxy: true,
                     man_use_cowmaster: false,
                     hon_install_directory: '',
-                    hon_home_directory: ''
+                    hon_home_directory: '',
+                    // Discord Bot Settings
+                    discord_bot_token: '',
+                    discord_owner_id: '',
+                    discord_notification_channel_id: '',
+                    discord_enable_notifications: true,
+                    discord_notify_match_start: true,
+                    discord_notify_match_end: true,
+                    discord_notify_player_join_leave: false
                 },
                 
                 // Form

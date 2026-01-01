@@ -795,13 +795,13 @@
                                                 <!-- Sleep Status Badge -->
                                                 <template x-if="isSleeping(instance.id)">
                                                     <div class="flex items-center gap-1 mr-1">
-                                                        <span class="px-2 py-0.5 bg-blue-600/30 border border-blue-500/50 rounded text-xs text-blue-400 animate-pulse flex items-center gap-1"
-                                                              :title="getSleepStatus(instance.id)">
+                                                        <span class="px-2 py-0.5 bg-blue-600/30 border border-blue-500/50 rounded text-xs text-blue-400 flex items-center gap-1"
+                                                              title="Server is sleeping">
                                                             <i class="fas fa-moon"></i>
-                                                            <span x-text="sleepingInstances[instance.id]?.pendingAction === 'stop' ? 'Stopping' : 'Restarting'"></span>
+                                                            <span>Sleeping</span>
                                                         </span>
-                                                        <button @click="cancelSleep(instance.id)" class="w-5 h-5 bg-zinc-700 hover:bg-red-600 rounded flex items-center justify-center text-xs" title="Cancel Sleep">
-                                                            <i class="fas fa-times"></i>
+                                                        <button @click="wakeInstance(instance.id)" class="w-6 h-6 bg-yellow-600 hover:bg-yellow-500 rounded flex items-center justify-center text-xs" title="Wake Up">
+                                                            <i class="fas fa-sun"></i>
                                                         </button>
                                                     </div>
                                                 </template>
@@ -839,9 +839,9 @@
                                     <span class="text-xs text-zinc-500" x-text="instance.status || 'Unknown'"></span>
                                     <!-- Sleep Badge -->
                                     <template x-if="isSleeping(instance.id)">
-                                        <span class="ml-auto px-2 py-0.5 bg-blue-600/30 border border-blue-500/50 rounded text-xs text-blue-400 animate-pulse flex items-center gap-1">
+                                        <span class="ml-auto px-2 py-0.5 bg-blue-600/30 border border-blue-500/50 rounded text-xs text-blue-400 flex items-center gap-1">
                                             <i class="fas fa-moon"></i>
-                                            <span x-text="sleepingInstances[instance.id]?.pendingAction === 'stop' ? 'Sleeping' : 'Restarting'"></span>
+                                            <span>Sleeping</span>
                                         </span>
                                     </template>
                                 </div>
@@ -868,9 +868,9 @@
                                 </div>
                                 <div class="flex items-center gap-1">
                                     <template x-if="isSleeping(instance.id)">
-                                        <button @click="cancelSleep(instance.id)"
-                                                class="flex-1 h-7 bg-red-800 hover:bg-red-600 rounded text-xs transition-colors">
-                                            <i class="fas fa-times mr-1"></i>Cancel
+                                        <button @click="wakeInstance(instance.id)"
+                                                class="flex-1 h-7 bg-yellow-600 hover:bg-yellow-500 rounded text-xs transition-colors">
+                                            <i class="fas fa-sun mr-1"></i>Wake
                                         </button>
                                     </template>
                                     <template x-if="!isSleeping(instance.id)">
@@ -1790,7 +1790,8 @@
                                     <i class="fas fa-sync-alt" :class="notificationsLoading ? 'fa-spin' : ''"></i>
                                 </button>
                             </div>
-                            <div x-show="alertThresholds" class="space-y-4">
+                            <template x-if="alertThresholds">
+                            <div class="space-y-4">
                                 <div>
                                     <label class="text-xs text-zinc-500 block mb-1">CPU Warning (%)</label>
                                     <input type="number" x-model.number="alertThresholds.cpuWarning" min="0" max="100"
@@ -1816,6 +1817,7 @@
                                     <i class="fas fa-save mr-2"></i>Save Thresholds
                                 </button>
                             </div>
+                            </template>
                             <div x-show="!alertThresholds" class="text-center py-6 text-zinc-500 text-sm">
                                 Loading thresholds...
                             </div>
@@ -2210,6 +2212,22 @@
                                        class="w-full h-8 bg-zinc-900 border border-zinc-700 rounded px-2 text-sm focus:outline-none">
                             </div>
                             
+                            <!-- Host Login -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Host Login</label>
+                                <input type="text" x-model="serverConfig.svr_login" 
+                                       placeholder="Your HoN login"
+                                       class="w-full h-8 bg-zinc-900 border border-zinc-700 rounded px-2 text-sm focus:outline-none">
+                            </div>
+                            
+                            <!-- Host Password -->
+                            <div>
+                                <label class="block text-xs text-zinc-500 mb-1">Host Password</label>
+                                <input type="password" x-model="serverConfig.svr_password" 
+                                       placeholder="Your HoN password"
+                                       class="w-full h-8 bg-zinc-900 border border-zinc-700 rounded px-2 text-sm focus:outline-none">
+                            </div>
+                            
                             <!-- Chat Server -->
                             <div>
                                 <label class="block text-xs text-zinc-500 mb-1">Chat Server</label>
@@ -2571,12 +2589,12 @@
                                     </div>
                                 </div>
                                 <div>
-                                    <div class="text-orange-400 font-medium mb-1">Safe Mode</div>
+                                    <div class="text-orange-400 font-medium mb-1">Sleep Mode</div>
                                     <div class="text-zinc-400 space-y-0.5">
-                                        <div><code class="text-blue-400">sleep [id] stop</code> - Queue stop</div>
-                                        <div><code class="text-blue-400">sleep [id] restart</code> - Queue restart</div>
-                                        <div><code class="text-blue-400">wake [id]</code> - Cancel sleep</div>
+                                        <div><code class="text-blue-400">sleep [id]</code> - Sleep (kick+stop)</div>
+                                        <div><code class="text-yellow-400">wake [id]</code> - Wake (start)</div>
                                         <div><code class="text-blue-400">sleeping</code> - List sleeping</div>
+                                        <div><code class="text-red-400">reset [id]</code> - Kick players only</div>
                                     </div>
                                 </div>
                                 <div>
@@ -2924,13 +2942,13 @@
                 
                 <div class="space-y-2">
                     <!-- Sleep Option -->
-                    <button @click="sleepInstance(safeModeInstance?.id, safeModeAction)"
+                    <button @click="sleepInstance(safeModeInstance?.id)"
                             class="w-full p-3 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-600/50 rounded-lg text-left transition-colors group">
                         <div class="flex items-center gap-3">
                             <i class="fas fa-moon text-blue-400 text-lg"></i>
                             <div class="flex-1">
                                 <div class="text-sm font-medium text-white">Sleep Mode</div>
-                                <div class="text-xs text-zinc-400">Wait for players to leave, then <span x-text="safeModeAction" class="text-blue-400"></span> automatically</div>
+                                <div class="text-xs text-zinc-400">Kick all players and stop server. Use <span class="text-yellow-400">Wake</span> to start again.</div>
                             </div>
                             <i class="fas fa-chevron-right text-zinc-600 group-hover:text-zinc-400"></i>
                         </div>
@@ -2943,7 +2961,7 @@
                             <i class="fas fa-bolt text-red-400 text-lg"></i>
                             <div class="flex-1">
                                 <div class="text-sm font-medium text-white">Force <span x-text="safeModeAction" class="capitalize"></span></div>
-                                <div class="text-xs text-zinc-400">Execute immediately (players will be disconnected)</div>
+                                <div class="text-xs text-zinc-400">Kick players and <span x-text="safeModeAction" class="text-red-400"></span> immediately</div>
                             </div>
                             <i class="fas fa-chevron-right text-zinc-600 group-hover:text-zinc-400"></i>
                         </div>
@@ -3366,9 +3384,14 @@
                 },
 
                 async init() {
+                    console.log('Init started, URL:', window.location.href);
+                    
                     // Check for token in URL or localStorage
                     const params = new URLSearchParams(window.location.search);
                     const urlToken = params.get('token');
+                    
+                    console.log('URL token:', urlToken);
+                    console.log('LocalStorage token:', localStorage.getItem('portal_token'));
                     
                     if (urlToken) {
                         this.token = urlToken;
@@ -3381,14 +3404,18 @@
                     // Check for error
                     const error = params.get('error');
                     if (error) {
+                        console.error('Login error:', error);
                         alert('Login failed: ' + error);
                         window.history.replaceState({}, '', '/');
                     }
+                    
+                    console.log('Final token:', this.token);
                     
                     if (this.token) {
                         await this.loadUser();
                     }
                     
+                    console.log('User after loadUser:', this.user);
                     this.loading = false;
                 },
                 
@@ -3413,12 +3440,17 @@
 
                 async loadUser() {
                     try {
+                        console.log('loadUser called with token:', this.token);
                         const res = await this.apiCall('/auth/me');
+                        console.log('loadUser response status:', res.status);
                         if (res.ok) {
                             this.user = await res.json();
+                            console.log('User loaded:', this.user);
                             await this.loadServers();
                             this.connectSignalR();
                         } else {
+                            const errorText = await res.text();
+                            console.error('loadUser failed:', res.status, errorText);
                             this.token = null;
                             localStorage.removeItem('portal_token');
                         }
@@ -3811,23 +3843,73 @@
                     return instances.find(i => i.id === instanceId);
                 },
                 
-                // Put instance to sleep (wait for players to leave)
-                sleepInstance(instanceId, action) {
-                    this.sleepingInstances[instanceId] = {
-                        pendingAction: action,
-                        waitingSince: Date.now()
-                    };
+                // Put instance to sleep (kick players and stop)
+                async sleepInstance(instanceId) {
                     this.showSafeModeModal = false;
-                    this.showToast(`Instance #${instanceId} set to ${action} when empty`, 'info');
                     
-                    // Start monitoring
-                    this.monitorSleepingInstance(instanceId);
+                    const instance = this.getInstanceById(instanceId);
+                    const players = instance ? (instance.num_clients ?? instance.numClients ?? 0) : 0;
+                    
+                    this.addLogEntry(`Putting instance #${instanceId} to sleep...`, 'info');
+                    
+                    try {
+                        // Step 1: Kick all players if any
+                        if (players > 0) {
+                            this.addLogEntry(`Kicking ${players} player(s)...`, 'warning');
+                            await this.apiCall(`/api/servers/${instanceId}/reset`, { method: 'POST' });
+                            await new Promise(r => setTimeout(r, 2000));
+                        }
+                        
+                        // Step 2: Stop the server
+                        this.addLogEntry('Stopping server...', 'info');
+                        const res = await this.apiCall(`/api/servers/${instanceId}/stop`, { method: 'POST' });
+                        
+                        // Always mark as sleeping if request was made (API now always returns success)
+                        this.sleepingInstances[instanceId] = {
+                            sleepingSince: new Date().toISOString()
+                        };
+                        
+                        // Update local instance status
+                        if (instance) {
+                            instance.status = 'Offline';
+                            instance.num_clients = 0;
+                            instance.numClients = 0;
+                        }
+                        
+                        this.addLogEntry(`Instance #${instanceId} is now sleeping`, 'success');
+                        this.showToast(`Instance #${instanceId} is now sleeping`, 'success');
+                    } catch (err) {
+                        this.addLogEntry(`Error: ${err.message}`, 'error');
+                        this.showToast(`Error: ${err.message}`, 'error');
+                    }
                 },
                 
-                // Cancel sleep mode for instance
+                // Wake instance from sleep (start it)
+                async wakeInstance(instanceId) {
+                    if (!this.sleepingInstances[instanceId]) {
+                        this.showToast(`Instance #${instanceId} is not sleeping`, 'warning');
+                        return;
+                    }
+                    
+                    this.showToast(`Waking instance #${instanceId}...`, 'info');
+                    
+                    try {
+                        const res = await this.apiCall(`/api/servers/${instanceId}/start`, { method: 'POST' });
+                        
+                        if (res.ok) {
+                            delete this.sleepingInstances[instanceId];
+                            this.showToast(`Instance #${instanceId} is now awake`, 'success');
+                        } else {
+                            this.showToast('Failed to start server', 'error');
+                        }
+                    } catch (err) {
+                        this.showToast(`Error: ${err.message}`, 'error');
+                    }
+                },
+                
+                // Cancel sleep mode for instance (deprecated - use wakeInstance)
                 cancelSleep(instanceId) {
-                    delete this.sleepingInstances[instanceId];
-                    this.showToast(`Cancelled pending action for instance #${instanceId}`, 'info');
+                    this.wakeInstance(instanceId);
                 },
                 
                 // Check if instance should be protected based on safe mode settings
@@ -3839,56 +3921,46 @@
                     return this.hasActivePlayers(instance) || this.isInGame(instance);
                 },
                 
-                // Monitor sleeping instance
-                async monitorSleepingInstance(instanceId) {
-                    const checkInterval = 5000; // Check every 5 seconds
-                    
-                    const check = async () => {
-                        const sleep = this.sleepingInstances[instanceId];
-                        if (!sleep) return; // Cancelled
-                        
-                        const instance = this.getInstanceById(instanceId);
-                        if (!instance) {
-                            delete this.sleepingInstances[instanceId];
-                            return;
-                        }
-                        
-                        // Check if players have left (based on strictMode setting)
-                        if (!this.shouldProtectInstance(instance)) {
-                            const action = sleep.pendingAction;
-                            delete this.sleepingInstances[instanceId];
-                            
-                            this.showToast(`Instance #${instanceId} is now empty, executing ${action}...`, 'info');
-                            
-                            if (action === 'stop') {
-                                await this.stopInstance(instanceId, true);
-                            } else if (action === 'restart') {
-                                await this.restartInstance(instanceId, true);
-                            }
-                            return;
-                        }
-                        
-                        // Continue monitoring
-                        setTimeout(check, checkInterval);
-                    };
-                    
-                    // Start checking
-                    setTimeout(check, checkInterval);
-                },
-                
-                // Force action (bypass safe mode)
-                forceAction() {
+                // Force action (bypass safe mode) - sends serverreset to kick all players first
+                async forceAction() {
                     if (!this.safeModeInstance) return;
                     
                     const instanceId = this.safeModeInstance.id;
                     const action = this.safeModeAction;
                     
                     this.showSafeModeModal = false;
+                    this.showToast(`Kicking players from instance #${instanceId}...`, 'warning');
                     
-                    if (action === 'stop') {
-                        this.stopInstance(instanceId, true);
-                    } else if (action === 'restart') {
-                        this.restartInstance(instanceId, true);
+                    try {
+                        // Send serverreset command to kick all players
+                        const res = await this.apiCall(`/api/servers/${instanceId}/reset`, 'POST');
+                        
+                        if (res.ok) {
+                            // Wait a moment for players to be disconnected
+                            await new Promise(r => setTimeout(r, 2000));
+                            
+                            if (action === 'stop') {
+                                await this.stopInstance(instanceId, true);
+                            } else if (action === 'restart') {
+                                await this.restartInstance(instanceId, true);
+                            }
+                        } else {
+                            this.showToast('Failed to send reset command', 'error');
+                            // Fall back to normal action
+                            if (action === 'stop') {
+                                await this.stopInstance(instanceId, true);
+                            } else if (action === 'restart') {
+                                await this.restartInstance(instanceId, true);
+                            }
+                        }
+                    } catch (err) {
+                        console.error('Force action failed:', err);
+                        // Fall back to normal action
+                        if (action === 'stop') {
+                            await this.stopInstance(instanceId, true);
+                        } else if (action === 'restart') {
+                            await this.restartInstance(instanceId, true);
+                        }
                     }
                 },
                 
@@ -4230,6 +4302,19 @@
                             this.serverConfig.hon_install_directory = config.hon_install_directory?.value ?? '';
                             this.serverConfig.hon_home_directory = config.hon_home_directory?.value ?? '';
                             
+                            // Host Credentials
+                            this.serverConfig.svr_login = config.svr_login?.value ?? '';
+                            this.serverConfig.svr_password = config.svr_password?.value ?? '';
+                            
+                            // Discord Bot Settings
+                            this.serverConfig.discord_bot_token = config.discord_bot_token?.value ?? '';
+                            this.serverConfig.discord_owner_id = config.discord_owner_id?.value ?? '';
+                            this.serverConfig.discord_notification_channel_id = config.discord_notification_channel_id?.value ?? '';
+                            this.serverConfig.discord_enable_notifications = config.discord_enable_notifications?.value ?? false;
+                            this.serverConfig.discord_notify_match_start = config.discord_notify_match_start?.value ?? true;
+                            this.serverConfig.discord_notify_match_end = config.discord_notify_match_end?.value ?? true;
+                            this.serverConfig.discord_notify_player_join_leave = config.discord_notify_player_join_leave?.value ?? false;
+                            
                             // Also update simple vars for backward compat
                             this.proxyEnabled = this.serverConfig.man_enableProxy;
                             this.basePort = this.serverConfig.svr_starting_gamePort;
@@ -4266,7 +4351,18 @@
                             man_enableProxy: this.serverConfig.man_enableProxy,
                             man_use_cowmaster: this.serverConfig.man_use_cowmaster,
                             hon_install_directory: this.serverConfig.hon_install_directory,
-                            hon_home_directory: this.serverConfig.hon_home_directory
+                            hon_home_directory: this.serverConfig.hon_home_directory,
+                            // Host Credentials
+                            svr_login: this.serverConfig.svr_login,
+                            svr_password: this.serverConfig.svr_password,
+                            // Discord Bot Settings
+                            discord_bot_token: this.serverConfig.discord_bot_token,
+                            discord_owner_id: this.serverConfig.discord_owner_id,
+                            discord_notification_channel_id: this.serverConfig.discord_notification_channel_id,
+                            discord_enable_notifications: this.serverConfig.discord_enable_notifications,
+                            discord_notify_match_start: this.serverConfig.discord_notify_match_start,
+                            discord_notify_match_end: this.serverConfig.discord_notify_match_end,
+                            discord_notify_player_join_leave: this.serverConfig.discord_notify_player_join_leave
                         };
                         
                         const res = await this.apiCall(
@@ -4482,7 +4578,7 @@
                            phase === 'loading';
                 },
                 
-                // Check if instance is sleeping (waiting for players to leave)
+                // Check if instance is sleeping
                 isSleeping(instanceId) {
                     return !!this.sleepingInstances[instanceId];
                 },
@@ -4491,7 +4587,8 @@
                 getSleepStatus(instanceId) {
                     const sleep = this.sleepingInstances[instanceId];
                     if (!sleep) return null;
-                    return sleep.pendingAction === 'stop' ? 'Waiting to Stop' : 'Waiting to Restart';
+                    const since = new Date(sleep.sleepingSince).toLocaleTimeString();
+                    return `Sleeping since ${since}`;
                 },
 
                 getPhaseClass(phase) {
@@ -4595,15 +4692,15 @@
                     
                     this.replaysLoading = true;
                     try {
-                        // Load replays list
-                        const res = await this.apiCall(`/api/servers/${this.selectedServer.serverId}/replays`);
+                        // Load replays list from the correct endpoint
+                        const res = await this.apiCall(`/api/replays/upload?count=100`);
                         if (res.ok) {
                             const data = await res.json();
                             this.replays = data.replays || [];
                         }
                         
                         // Load replay stats
-                        const statsRes = await this.apiCall(`/api/servers/${this.selectedServer.serverId}/replays/stats`);
+                        const statsRes = await this.apiCall(`/api/replays/upload/stats`);
                         if (statsRes.ok) {
                             this.replayStats = await statsRes.json();
                         }
@@ -4615,10 +4712,8 @@
                 },
 
                 async downloadReplay(filename) {
-                    if (!this.selectedServer) return;
-                    
                     try {
-                        const res = await this.apiCall(`/api/servers/${this.selectedServer.serverId}/replays/download/${filename}`);
+                        const res = await this.apiCall(`/api/replays/download/${filename}`);
                         if (res.ok) {
                             const blob = await res.blob();
                             const url = window.URL.createObjectURL(blob);
@@ -4641,7 +4736,7 @@
                     if (!confirm(`Delete replay ${filename}?`)) return;
                     
                     try {
-                        const res = await this.apiCall(`/api/servers/${this.selectedServer.serverId}/replays/${filename}`, {
+                        const res = await this.apiCall(`/api/replays/upload/${filename}`, {
                             method: 'DELETE'
                         });
                         if (res.ok) {
@@ -4668,7 +4763,7 @@
                     
                     this.replaysLoading = true;
                     try {
-                        const res = await this.apiCall(`/api/servers/${this.selectedServer.serverId}/replays/archive?daysOld=${daysNum}`, {
+                        const res = await this.apiCall(`/api/replays/manage/archive?daysOld=${daysNum}`, {
                             method: 'POST'
                         });
                         const data = await res.json();
@@ -4699,7 +4794,7 @@
                     
                     this.replaysLoading = true;
                     try {
-                        const res = await this.apiCall(`/api/servers/${this.selectedServer.serverId}/replays/cleanup?daysOld=${daysNum}`, {
+                        const res = await this.apiCall(`/api/replays/manage/cleanup?daysOld=${daysNum}`, {
                             method: 'POST'
                         });
                         const data = await res.json();
@@ -5984,6 +6079,11 @@
                             case 'sleeping':
                                 this.handleSleepingCommand();
                                 break;
+                            
+                            case 'reset':
+                            case 'kick':
+                                await this.handleResetCommand(args);
+                                break;
 
                             default:
                                 // Send to server as raw command
@@ -6226,24 +6326,17 @@
                 },
 
                 async handleSleepCommand(args) {
-                    if (args.length < 2) {
-                        this.addConsoleLog('Usage: sleep [instance_id] [action]', 'warning');
-                        this.addConsoleLog('Actions: stop, restart', 'info');
-                        this.addConsoleLog('Example: sleep 1 stop', 'info');
-                        this.addConsoleLog('Example: sleep 2 restart', 'info');
+                    if (args.length === 0) {
+                        this.addConsoleLog('Usage: sleep [instance_id]', 'warning');
+                        this.addConsoleLog('Example: sleep 1', 'info');
+                        this.addConsoleLog('This will kick all players and stop the server until wake', 'info');
                         return;
                     }
                     
                     const id = parseInt(args[0]);
-                    const action = args[1].toLowerCase();
                     
                     if (isNaN(id)) {
                         this.addConsoleLog(`Invalid instance ID: ${args[0]}`, 'error');
-                        return;
-                    }
-                    
-                    if (action !== 'stop' && action !== 'restart') {
-                        this.addConsoleLog(`Invalid action: ${action}. Use 'stop' or 'restart'`, 'error');
                         return;
                     }
                     
@@ -6253,44 +6346,68 @@
                         return;
                     }
                     
-                    // Check if instance has players
-                    if (!this.shouldProtectInstance(instance)) {
-                        this.addConsoleLog(`Instance #${id} has no active players, executing ${action} immediately...`, 'info');
-                        if (action === 'stop') {
-                            await this.handleStopCommand([id.toString()]);
-                        } else {
-                            await this.handleRestartCommand([id.toString()]);
-                        }
+                    // Check if already sleeping
+                    if (this.sleepingInstances[id]) {
+                        this.addConsoleLog(`Instance #${id} is already sleeping. Use 'wake ${id}' to start it.`, 'warning');
                         return;
                     }
                     
-                    // Put instance to sleep
                     const players = instance.num_clients ?? instance.numClients ?? 0;
-                    this.sleepingInstances[id] = {
-                        pendingAction: action,
-                        waitingSince: new Date().toISOString()
-                    };
-                    this.monitorSleepingInstance(id);
                     
-                    this.addConsoleLog(`<span class="text-blue-400">☽</span> Instance #${id} is now sleeping`, 'success');
-                    this.addConsoleLog(`  Action: <span class="${action === 'stop' ? 'text-red-400' : 'text-orange-400'}">${action}</span>`, 'output');
-                    this.addConsoleLog(`  Players: <span class="text-yellow-400">${players}</span> online`, 'output');
-                    this.addConsoleLog(`  Will ${action} when all players leave`, 'info');
+                    this.addConsoleLog(`<span class="text-blue-400">☽</span> Putting instance #${id} to sleep...`, 'info');
+                    
+                    // Step 1: Kick all players if any
+                    if (players > 0) {
+                        this.addConsoleLog(`  Kicking ${players} player(s)...`, 'warning');
+                        try {
+                            await this.apiCall(`/api/servers/${id}/reset`, { method: 'POST' });
+                            // Wait a moment for players to disconnect
+                            await new Promise(r => setTimeout(r, 2000));
+                        } catch (e) {
+                            this.addConsoleLog(`  Warning: Could not kick players`, 'warning');
+                        }
+                    }
+                    
+                    // Step 2: Stop the server
+                    this.addConsoleLog(`  Stopping server...`, 'info');
+                    try {
+                        const res = await this.apiCall(`/api/servers/${id}/stop`, { method: 'POST' });
+                        // API always returns 200 OK now, just proceed
+                    } catch (e) {
+                        this.addConsoleLog(`  Warning: ${e.message}`, 'warning');
+                        // Continue anyway - we'll mark as sleeping
+                    }
+                    
+                    // Step 3: Mark as sleeping and update local status
+                    this.sleepingInstances[id] = {
+                        sleepingSince: new Date().toISOString()
+                    };
+                    
+                    // Update local instance status
+                    if (instance) {
+                        instance.status = 'Offline';
+                        instance.num_clients = 0;
+                        instance.numClients = 0;
+                    }
+                    
+                    this.addConsoleLog(`<span class="text-blue-400">☽</span> Instance #${id} is now <span class="text-blue-400">sleeping</span>`, 'success');
+                    this.addConsoleLog(`  Use 'wake ${id}' to start it again`, 'info');
                 },
 
-                handleWakeCommand(args) {
+                async handleWakeCommand(args) {
                     if (args.length === 0) {
-                        // Cancel all sleeping
-                        const count = Object.keys(this.sleepingInstances).length;
-                        if (count === 0) {
-                            this.addConsoleLog('No sleeping instances to cancel', 'info');
+                        // Wake all sleeping instances
+                        const sleepingIds = Object.keys(this.sleepingInstances);
+                        if (sleepingIds.length === 0) {
+                            this.addConsoleLog('No sleeping instances to wake', 'info');
                             return;
                         }
                         
-                        for (const id of Object.keys(this.sleepingInstances)) {
-                            delete this.sleepingInstances[id];
+                        this.addConsoleLog(`<span class="text-yellow-400">☀</span> Waking all ${sleepingIds.length} sleeping instance(s)...`, 'info');
+                        
+                        for (const id of sleepingIds) {
+                            await this.handleWakeCommand([id]);
                         }
-                        this.addConsoleLog(`✓ Cancelled all ${count} sleeping instances`, 'success');
                         return;
                     }
                     
@@ -6305,9 +6422,64 @@
                         return;
                     }
                     
-                    const action = this.sleepingInstances[id].pendingAction;
-                    delete this.sleepingInstances[id];
-                    this.addConsoleLog(`✓ Cancelled ${action} for instance #${id}`, 'success');
+                    this.addConsoleLog(`<span class="text-yellow-400">☀</span> Waking instance #${id}...`, 'info');
+                    
+                    // Start the server
+                    try {
+                        const res = await this.apiCall(`/api/servers/${id}/start`, { method: 'POST' });
+                        if (res.ok) {
+                            delete this.sleepingInstances[id];
+                            this.addConsoleLog(`<span class="text-yellow-400">☀</span> Instance #${id} is now <span class="text-green-400">awake</span>`, 'success');
+                        } else {
+                            const err = await res.json().catch(() => ({}));
+                            this.addConsoleLog(`✗ Failed to wake instance: ${err.error || 'Unknown error'}`, 'error');
+                        }
+                    } catch (e) {
+                        this.addConsoleLog(`✗ Error waking instance: ${e.message}`, 'error');
+                    }
+                },
+
+                async handleResetCommand(args) {
+                    if (args.length === 0) {
+                        this.addConsoleLog('Usage: reset [instance_id] - Kick all players from instance', 'warning');
+                        this.addConsoleLog('Example: reset 1', 'info');
+                        this.addConsoleLog('Alias: kick', 'info');
+                        return;
+                    }
+                    
+                    const id = parseInt(args[0]);
+                    if (isNaN(id)) {
+                        this.addConsoleLog(`Invalid instance ID: ${args[0]}`, 'error');
+                        return;
+                    }
+                    
+                    const instance = this.getInstanceById(id);
+                    if (!instance) {
+                        this.addConsoleLog(`Instance #${id} not found`, 'error');
+                        return;
+                    }
+                    
+                    const players = instance.num_clients ?? instance.numClients ?? 0;
+                    if (players === 0) {
+                        this.addConsoleLog(`Instance #${id} has no players`, 'warning');
+                        return;
+                    }
+                    
+                    this.addConsoleLog(`⚠ Kicking ${players} player(s) from instance #${id}...`, 'warning');
+                    
+                    try {
+                        const res = await this.apiCall(`/api/servers/${id}/reset`, { method: 'POST' });
+                        
+                        if (res.ok) {
+                            this.addConsoleLog(`✓ Reset command sent to instance #${id}`, 'success');
+                            this.addConsoleLog('Players will be disconnected shortly', 'info');
+                        } else {
+                            const err = await res.json();
+                            this.addConsoleLog(`✗ Failed: ${err.error || 'Unknown error'}`, 'error');
+                        }
+                    } catch (err) {
+                        this.addConsoleLog(`✗ Error: ${err.message}`, 'error');
+                    }
                 },
 
                 handleSleepingCommand() {
@@ -6315,24 +6487,21 @@
                     
                     if (sleeping.length === 0) {
                         this.addConsoleLog('No sleeping instances', 'info');
-                        this.addConsoleLog('Use: sleep [id] [stop|restart] to queue an action', 'info');
+                        this.addConsoleLog('Use: sleep [id] to put an instance to sleep', 'info');
                         return;
                     }
                     
                     this.addConsoleLog(`─── Sleeping Instances (${sleeping.length}) ───`, 'info');
-                    this.addConsoleLog('  ID   ACTION    WAITING SINCE', 'output');
-                    this.addConsoleLog('  ──   ──────    ─────────────', 'output');
+                    this.addConsoleLog('  ID   SLEEPING SINCE', 'output');
+                    this.addConsoleLog('  ──   ──────────────', 'output');
                     
                     for (const [id, info] of sleeping) {
-                        const instance = this.getInstanceById(parseInt(id));
-                        const players = instance ? (instance.num_clients ?? instance.numClients ?? 0) : '?';
-                        const action = `<span class="${info.pendingAction === 'stop' ? 'text-red-400' : 'text-orange-400'}">${info.pendingAction.padEnd(9)}</span>`;
-                        const since = new Date(info.waitingSince).toLocaleTimeString();
-                        this.addConsoleLog(`  ${String(id).padEnd(4)} ${action} ${since} <span class="text-zinc-500">(${players} players)</span>`, 'output');
+                        const since = new Date(info.sleepingSince).toLocaleTimeString();
+                        this.addConsoleLog(`  <span class="text-blue-400">☽</span> ${String(id).padEnd(4)} ${since}`, 'output');
                     }
                     
                     this.addConsoleLog('', 'output');
-                    this.addConsoleLog('Use: wake [id] to cancel, or wake to cancel all', 'info');
+                    this.addConsoleLog('Use: wake [id] to wake up, or wake to wake all', 'info');
                 },
 
                 async sendRawConsoleCommand(command) {
